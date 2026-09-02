@@ -1,0 +1,211 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  APP_NAME: switchblade
+
+jobs:
+  # ─── Test ─────────────────────────────────────────────────────────────
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+      - name: Run tests
+        run: go test -v -cover -race ./...
+
+  # ─── Lint ─────────────────────────────────────────────────────────────
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+  # ─── Frontend Build ───────────────────────────────────────────────────
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install deps
+        run: npm ci
+        working-directory: web
+      - name: Build SPA
+        run: npm run build
+        working-directory: web
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+          retention-days: 1
+
+  # ─── Cross-compile Binaries ───────────────────────────────────────────
+  build:
+    needs: [test, frontend]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          # Linux
+          - { goos: linux,   goarch: amd64,  ext: "" }
+          - { goos: linux,   goarch: arm64,  ext: "" }
+          - { goos: linux,   goarch: arm,    ext: "" }
+          - { goos: linux,   goarch: 386,    ext: "" }
+          - { goos: linux,   goarch: riscv64,ext: "" }
+          - { goos: linux,   goarch: loong64,ext: "" }
+          - { goos: linux,   goarch: mips64, ext: "" }
+          # Windows
+          - { goos: windows, goarch: amd64,  ext: ".exe" }
+          - { goos: windows, goarch: arm64,  ext: ".exe" }
+          - { goos: windows, goarch: 386,    ext: ".exe" }
+          # macOS
+          - { goos: darwin,  goarch: amd64,  ext: "" }
+          - { goos: darwin,  goarch: arm64,  ext: "" }
+          # FreeBSD
+          - { goos: freebsd, goarch: amd64,  ext: "" }
+          - { goos: freebsd, goarch: arm64,  ext: "" }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          go build -trimpath -ldflags="-s -w \
+            -X main.Version=${GITHUB_REF_NAME:-dev} \
+            -X main.Commit=${GITHUB_SHA::8} \
+            -X main.Date=$(date -u +%Y%m%d)" \
+            -o ${{ env.APP_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} \
+            ./cmd/switchblade
+
+      - name: Create archive
+        run: |
+          BINARY="${{ env.APP_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
+          ARCHIVE="${{ env.APP_NAME }}-${GITHUB_REF_NAME:-dev}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz"
+          if [ -f README.md ] && [ -f LICENSE ]; then
+            tar czf "$ARCHIVE" "$BINARY" README.md LICENSE
+          elif [ -f README.md ]; then
+            tar czf "$ARCHIVE" "$BINARY" README.md
+          else
+            tar czf "$ARCHIVE" "$BINARY"
+          fi
+          echo "ARCHIVE=$ARCHIVE" >> $GITHUB_ENV
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.APP_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          retention-days: 90
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-archive-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.ARCHIVE }}
+          retention-days: 90
+
+  # ─── Docker ───────────────────────────────────────────────────────────
+  docker:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+
+      - name: Login to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─── Release (on tag) ─────────────────────────────────────────────────
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [test, lint, frontend, build, docker]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ env.APP_NAME }}-archive-*
+          path: dist
+          merge-multiple: true
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)
+          echo "### What's Changed" >> notes.md
+          git log "$PREV..HEAD" --pretty=format:"- %s (%h)" >> notes.md
+          echo "notes=notes.md" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.tar.gz
+          body_path: ${{ steps.changelog.outputs.notes }}
+          draft: false
+          generate_release_notes: true

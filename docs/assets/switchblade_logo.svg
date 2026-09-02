@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 220" width="100%" height="100%">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="bladeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00F2FE" />
+      <stop offset="50%" stop-color="#4FACFE" />
+      <stop offset="100%" stop-color="#7000FF" />
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="70%" stop-color="#E2E8F0" />
+      <stop offset="100%" stop-color="#00F2FE" />
+    </linearGradient>
+  </defs>
+
+  <style>
+    @keyframes pulse {
+      0%, 100% { opacity: 0.85; }
+      50% { opacity: 1; }
+    }
+    @keyframes draw {
+      from { stroke-dashoffset: 490; }
+      to { stroke-dashoffset: 0; }
+    }
+    @keyframes bladeUnfold {
+      from { transform: rotate(-55deg); transform-origin: 90px 120px; opacity: 0.3; }
+      to { transform: rotate(0deg); transform-origin: 90px 120px; opacity: 1; }
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+    
+    .glow-element {
+      animation: pulse 3s infinite ease-in-out;
+    }
+    .blade-animated {
+      transform-origin: 90px 120px;
+      animation: bladeUnfold 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+    .draw-line {
+      stroke-dasharray: 490;
+      stroke-dashoffset: 0;
+      animation: draw 2.5s ease-out forwards;
+    }
+    .led-blink {
+      animation: blink 1.5s infinite ease-in-out;
+    }
+  </style>
+
+  <!-- Background container with tech border -->
+  <rect width="800" height="220" rx="16" fill="#070A13" stroke="#1E293B" stroke-width="2"/>
+
+  <!-- Subtle grid pattern in background for tech feel -->
+  <defs>
+    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(0, 242, 254, 0.03)" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="800" height="220" fill="url(#grid)" pointer-events="none" rx="16"/>
+
+  <!-- Decorative Corner Brackets -->
+  <path d="M 12,30 L 12,12 L 30,12" stroke="#334155" stroke-width="2" fill="none" />
+  <path d="M 770,12 L 788,12 L 788,30" stroke="#334155" stroke-width="2" fill="none" />
+  <path d="M 12,190 L 12,208 L 30,208" stroke="#334155" stroke-width="2" fill="none" />
+  <path d="M 770,208 L 788,208 L 788,190" stroke="#334155" stroke-width="2" fill="none" />
+
+  <!-- Animated Blade Icon -->
+  <g>
+    <!-- Handle (Cyberpunk style, static) -->
+    <path d="M 50,150 L 75,90 L 105,90 L 80,150 Z" fill="#111827" stroke="#374151" stroke-width="2"/>
+    <circle cx="75" cy="120" r="5" fill="#00F2FE" class="led-blink" />
+    <path d="M 80,110 L 95,110" stroke="#7000FF" stroke-width="2" opacity="0.7" />
+    
+    <!-- Rotating Blade -->
+    <g class="blade-animated">
+      <!-- Glow underlay -->
+      <path d="M 95,120 L 185,55 L 235,120 L 145,120 Z" fill="url(#bladeGrad)" opacity="0.25"/>
+      <!-- Solid Blade -->
+      <path d="M 95,120 L 185,55 L 235,120 L 145,120 Z" fill="url(#bladeGrad)" stroke="#FFFFFF" stroke-width="1"/>
+      <!-- Blade Edge highlight -->
+      <path d="M 185,55 L 235,120" stroke="#00F2FE" stroke-width="3" opacity="0.9" class="glow-element"/>
+    </g>
+  </g>
+
+  <!-- Text Section -->
+  <g transform="translate(265, 125)">
+    <!-- Main Glowing Text -->
+    <text x="0" y="0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="56" font-weight="900" letter-spacing="8" fill="url(#textGrad)" class="glow-element">SWITCHBLADE</text>
+    
+    <!-- Underline / Accent line -->
+    <line x1="0" y1="18" x2="490" y2="18" stroke="#1E293B" stroke-width="3" />
+    <line x1="0" y1="18" x2="490" y2="18" stroke="url(#bladeGrad)" stroke-width="3" class="draw-line" />
+    
+    <!-- Small tech subtext -->
+    <text x="5" y="42" font-family="'Courier New', Courier, monospace" font-size="12" font-weight="bold" fill="#64748B" letter-spacing="4.5">HIGH-PERFORMANCE AI API PROXY POOL</text>
+  </g>
+</svg>

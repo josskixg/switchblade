@@ -1,0 +1,135 @@
+# ─────────────────────────────────────────────
+#  Switchblade — .gitignore
+# ─────────────────────────────────────────────
+
+# ── Binary / Build output ──────────────────────
+switchblade
+switchblade.exe
+/dist/
+/build/
+*.out
+*.test
+
+# ── Data & Runtime files ───────────────────────
+data/
+!data/.gitkeep
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# ── Environment / Secrets ─────────────────────
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ── Go toolchain ──────────────────────────────
+vendor/
+*.so
+*.dylib
+
+# ── Python / Auth bots ────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+.installed.cfg
+MANIFEST
+.venv/
+venv/
+ENV/
+env/
+.env/
+pip-wheel-metadata/
+.pip-cache/
+
+# ── Node / Dashboard ─────────────────────────
+node_modules/
+dashboard/dist/
+dashboard/build/
+dashboard/.vite/
+.npm
+.yarn
+
+# ── Playwright / Camoufox ─────────────────────
+playwright-report/
+test-results/
+.playwright/
+
+# ── Logs ──────────────────────────────────────
+*.log
+logs/
+*.log.*
+
+# ── Backups ───────────────────────────────────
+backups/
+*.bak
+*.backup
+*.gz
+
+# ── Image / media storage ─────────────────────
+data/images/
+
+# ── OS / Editor ───────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ── JetBrains / IntelliJ ──────────────────────
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# ── VSCode ────────────────────────────────────
+.vscode/
+*.code-workspace
+
+# ── Vim / Neovim ──────────────────────────────
+*.swp
+*.swo
+*~
+.netrwhist
+
+# ── Coverage / Profiling ──────────────────────
+coverage.out
+coverage.html
+cpu.prof
+mem.prof
+*.prof
+
+# ── Cloudflared binary ────────────────────────
+cloudflared
+cloudflared.exe
+
+# ── Temp / misc ───────────────────────────────
+tmp/
+temp/
+*.tmp
+*.temp
+
+# ── Project Meta / Custom Files ────────────────
+.omo/
+PLAN.md
+

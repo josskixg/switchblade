@@ -1,0 +1,2222 @@
+openapi: '3.0.3'
+info:
+  title: Switchblade API
+  description: AI proxy pool API — OpenAI-compatible proxy with 90+ providers, dashboard management, and tools.
+  version: '1.0.0'
+servers:
+  - url: 'http://localhost:1930'
+    description: Main API server
+  - url: 'http://localhost:1931'
+    description: Dashboard API server
+
+tags:
+  - name: Health
+    description: Health check endpoints (public)
+  - name: Proxy
+    description: OpenAI-compatible chat and image proxy
+  - name: Accounts
+    description: Provider account management
+  - name: Keys
+    description: API key management
+  - name: Providers
+    description: Provider configuration
+  - name: VCC
+    description: Virtual credit card management
+  - name: ProxyPool
+    description: HTTP/SOCKS proxy pool
+  - name: Combos
+    description: Model fallback chains
+  - name: Cache
+    description: Response cache management
+  - name: Filters
+    description: Request/response filter rules
+  - name: Settings
+    description: Key-value settings
+  - name: Logs
+    description: Request logs
+  - name: Stats
+    description: System statistics
+  - name: Export
+    description: Data export
+  - name: Import
+    description: Data import
+  - name: Relay
+    description: Relay node management
+  - name: Images
+    description: Image studio results
+  - name: Replay
+    description: Request replay queue
+  - name: Models
+    description: Available models listing
+
+security:
+  - BearerAuth: []
+
+paths:
+  # ── Health (public) ──
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns overall service health status. No authentication required.
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  uptime:
+                    type: integer
+                    example: 3600
+        '500':
+          description: Service unhealthy
+
+  /ready:
+    get:
+      tags: [Health]
+      summary: Readiness check
+      description: Returns whether the service is ready to accept traffic. No authentication required.
+      security: []
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ready
+        '503':
+          description: Service not ready
+
+  /live:
+    get:
+      tags: [Health]
+      summary: Liveness check
+      description: Kubernetes-style liveness probe. No authentication required.
+      security: []
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: alive
+        '500':
+          description: Service not alive
+
+  /metrics:
+    get:
+      tags: [Health]
+      summary: Prometheus metrics
+      description: Prometheus-compatible metrics endpoint. No authentication required.
+      security: []
+      responses:
+        '200':
+          description: Metrics in Prometheus text format
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "# HELP requests_total Total number of requests\n# TYPE requests_total counter\nrequests_total 142\n"
+
+  # ── Proxy ──
+  /v1/chat/completions:
+    post:
+      tags: [Proxy]
+      summary: Chat completions (proxy)
+      description: OpenAI-compatible chat completions endpoint. Proxies requests to configured AI providers with load balancing, failover, and caching.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatCompletionRequest'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatCompletionResponse'
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE stream of ChatCompletionChunk objects
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: No available provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Models ──
+  /v1/models:
+    get:
+      tags: [Models]
+      summary: List available models
+      description: Returns an OpenAI-compatible list of all models from registered providers.
+      responses:
+        '200':
+          description: List of models
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          example: gpt-4o
+                        object:
+                          type: string
+                          example: model
+                        owned_by:
+                          type: string
+                          example: openai
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Images Proxy ──
+  /v1/images/generations:
+    post:
+      tags: [Proxy]
+      summary: Image generation (proxy)
+      description: OpenAI-compatible image generation endpoint. Proxies to image-capable providers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                prompt:
+                  type: string
+                  example: "A sunset over mountains"
+                n:
+                  type: integer
+                  default: 1
+                size:
+                  type: string
+                  default: "1024x1024"
+                model:
+                  type: string
+                response_format:
+                  type: string
+                  enum: [url, b64_json]
+      responses:
+        '200':
+          description: Generation successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationResponse'
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: No image provider available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/images/retrieve/{id}:
+    get:
+      tags: [Proxy]
+      summary: Retrieve generated image
+      description: Retrieve a previously generated image by ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Image data
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Image not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Accounts ──
+  /api/accounts:
+    get:
+      tags: [Accounts]
+      summary: List accounts
+      description: Returns all provider accounts, optionally filtered by provider.
+      parameters:
+        - name: provider
+          in: query
+          schema:
+            type: string
+          description: Filter by provider name
+      responses:
+        '200':
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Account'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [Accounts]
+      summary: Create account
+      description: Add a new provider account with credentials.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, email]
+              properties:
+                provider:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                status:
+                  type: string
+                  default: pending
+                enabled:
+                  type: boolean
+                  default: true
+                quota_limit:
+                  type: number
+                quota_remaining:
+                  type: number
+                tokens:
+                  type: object
+                metadata:
+                  type: string
+      responses:
+        '201':
+          description: Account created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: created
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/accounts/{id}:
+    put:
+      tags: [Accounts]
+      summary: Update account
+      description: Update an existing provider account.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                provider:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                status:
+                  type: string
+                enabled:
+                  type: boolean
+                quota_limit:
+                  type: number
+                quota_remaining:
+                  type: number
+                tokens:
+                  type: object
+                metadata:
+                  type: string
+      responses:
+        '200':
+          description: Account updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: updated
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Account not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [Accounts]
+      summary: Delete account
+      description: Remove a provider account.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Account deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Stats ──
+  /api/stats:
+    get:
+      tags: [Stats]
+      summary: Get system stats
+      description: Returns aggregate statistics: account counts, request counts, cache stats, etc.
+      responses:
+        '200':
+          description: Statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stats'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Logs ──
+  /api/logs:
+    get:
+      tags: [Logs]
+      summary: Get request logs
+      description: Returns paginated request logs with optional filters.
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: provider
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Log entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LogEntry'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Keys ──
+  /api/keys:
+    get:
+      tags: [Keys]
+      summary: List API keys
+      description: Returns all API keys (hash only, plaintext never returned after creation).
+      responses:
+        '200':
+          description: List of keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiKey'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [Keys]
+      summary: Create API key
+      description: Generate a new API key. The plaintext key is returned only once.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  example: "dashboard-key"
+      responses:
+        '201':
+          description: Key created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  key:
+                    type: string
+                    description: Plaintext key — store securely, never returned again
+                  name:
+                    type: string
+        '400':
+          description: Name required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/keys/{id}:
+    delete:
+      tags: [Keys]
+      summary: Delete API key
+      description: Revoke an API key.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Key deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Provider Config ──
+  /api/provider-config:
+    get:
+      tags: [Providers]
+      summary: List provider configs
+      description: Returns all provider configurations with base URLs and models.
+      responses:
+        '200':
+          description: List of provider configs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProviderConfig'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [Providers]
+      summary: Upsert provider config
+      description: Create or update a provider configuration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, base_url]
+              properties:
+                provider:
+                  type: string
+                base_url:
+                  type: string
+                models:
+                  type: array
+                  items:
+                    type: string
+                enabled:
+                  type: boolean
+                  default: true
+                extra:
+                  type: object
+      responses:
+        '200':
+          description: Config saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: upserted
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/provider-config/{provider}:
+    delete:
+      tags: [Providers]
+      summary: Delete provider config
+      description: Remove a provider configuration.
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Config deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/provider-config/defaults:
+    get:
+      tags: [Providers]
+      summary: Get provider defaults
+      description: Returns default base URLs for all known providers.
+      responses:
+        '200':
+          description: Default provider URLs
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+
+  /api/provider-config/seed:
+    post:
+      tags: [Providers]
+      summary: Seed provider defaults
+      description: Insert default provider configurations for all known providers.
+      responses:
+        '200':
+          description: Defaults seeded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: seeded
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── VCC ──
+  /api/vcc/cards:
+    get:
+      tags: [VCC]
+      summary: List VCC cards
+      description: Returns all virtual credit cards (number masked for security).
+      responses:
+        '200':
+          description: List of VCC cards
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VccCard'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [VCC]
+      summary: Create VCC card
+      description: Add a new virtual credit card.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [number, exp_month, exp_year, cvv]
+              properties:
+                number:
+                  type: string
+                bin:
+                  type: string
+                exp_month:
+                  type: string
+                exp_year:
+                  type: string
+                cvv:
+                  type: string
+                name:
+                  type: string
+                  default: "John Doe"
+      responses:
+        '201':
+          description: Card created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: created
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/vcc/cards/{id}:
+    delete:
+      tags: [VCC]
+      summary: Delete VCC card
+      description: Remove a VCC card.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Card deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/vcc/transactions:
+    get:
+      tags: [VCC]
+      summary: List VCC transactions
+      description: Returns VCC transaction history.
+      responses:
+        '200':
+          description: Transaction list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VccTransaction'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/vcc/auto-assign:
+    post:
+      tags: [VCC]
+      summary: Auto-assign VCC cards
+      description: Automatically assign available VCC cards to enabled accounts.
+      responses:
+        '200':
+          description: Assignment results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assigned:
+                    type: integer
+                  no_cards_available:
+                    type: integer
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Proxy Pool ──
+  /api/proxy-pool:
+    get:
+      tags: [ProxyPool]
+      summary: List proxies
+      description: Returns all configured proxies in the pool.
+      responses:
+        '200':
+          description: List of proxies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Proxy'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [ProxyPool]
+      summary: Add proxy
+      description: Add a proxy to the pool.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                type:
+                  type: string
+                  default: http
+                  enum: [http, https, socks4, socks5]
+                label:
+                  type: string
+      responses:
+        '201':
+          description: Proxy added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: created
+        '400':
+          description: URL required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/proxy-pool/{id}:
+    put:
+      tags: [ProxyPool]
+      summary: Toggle proxy status
+      description: Enable/disable a proxy or set its status explicitly.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [active, disabled]
+      responses:
+        '200':
+          description: Proxy updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: updated
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [ProxyPool]
+      summary: Delete proxy
+      description: Remove a proxy from the pool.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Proxy deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Model Combos ──
+  /api/model-combos:
+    get:
+      tags: [Combos]
+      summary: List model combos
+      description: Returns all model fallback chain configurations.
+      responses:
+        '200':
+          description: List of combos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ModelCombo'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [Combos]
+      summary: Create model combo
+      description: Create a new model fallback chain.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                label:
+                  type: string
+                models_json:
+                  type: string
+                  default: "[]"
+                  description: JSON array of model IDs in fallback order
+      responses:
+        '201':
+          description: Combo created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: created
+        '400':
+          description: Name required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/model-combos/{id}:
+    put:
+      tags: [Combos]
+      summary: Update model combo
+      description: Update a model fallback chain.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                label:
+                  type: string
+                models_json:
+                  type: string
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Combo updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: updated
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [Combos]
+      summary: Delete model combo
+      description: Remove a model fallback chain.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Combo deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Cache ──
+  /api/cache:
+    delete:
+      tags: [Cache]
+      summary: Flush cache
+      description: Clear all cached responses.
+      responses:
+        '200':
+          description: Cache flushed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: flushed
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/cache/stats:
+    get:
+      tags: [Cache]
+      summary: Cache stats
+      description: Returns cache statistics: entry count and keys.
+      responses:
+        '200':
+          description: Cache stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  keys:
+                    type: array
+                    items:
+                      type: string
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Filters ──
+  /api/filters:
+    get:
+      tags: [Filters]
+      summary: List filter rules
+      description: Returns all active request/response filter rules.
+      responses:
+        '200':
+          description: Filter rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Filter'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [Filters]
+      summary: Create filter rule
+      description: Add a new request/response filter rule.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rule_id, pattern]
+              properties:
+                rule_id:
+                  type: string
+                pattern:
+                  type: string
+                replacement:
+                  type: string
+                is_regex:
+                  type: integer
+                  default: 0
+                sort_order:
+                  type: integer
+                  default: 0
+      responses:
+        '201':
+          description: Filter created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: created
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/filters/{id}:
+    delete:
+      tags: [Filters]
+      summary: Delete filter rule
+      description: Remove a filter rule.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Filter deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Settings ──
+  /api/settings:
+    get:
+      tags: [Settings]
+      summary: List settings
+      description: Returns all key-value settings.
+      responses:
+        '200':
+          description: Settings
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [Settings]
+      summary: Set setting
+      description: Set a key-value setting.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, value]
+              properties:
+                key:
+                  type: string
+                value:
+                  type: string
+      responses:
+        '200':
+          description: Setting saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: saved
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Images ──
+  /api/images:
+    get:
+      tags: [Images]
+      summary: List images
+      description: Returns image studio results (up to 500 most recent).
+      responses:
+        '200':
+          description: Image records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ImageRecord'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/images/stats:
+    get:
+      tags: [Images]
+      summary: Image stats
+      description: Returns total image count and disk usage.
+      responses:
+        '200':
+          description: Image stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  total_size_bytes:
+                    type: integer
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/images/{id}:
+    get:
+      tags: [Images]
+      summary: Serve image
+      description: Serve an image file from disk.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Image file
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Image not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [Images]
+      summary: Delete image
+      description: Delete an image record and its file.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Image deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Export / Import ──
+  /api/export/accounts:
+    get:
+      tags: [Export]
+      summary: Export accounts
+      description: Export all accounts as JSON.
+      responses:
+        '200':
+          description: Exported accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Account'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/export/logs:
+    get:
+      tags: [Export]
+      summary: Export logs
+      description: Export request logs as JSON, optionally filtered by date.
+      parameters:
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Only export logs since this date (YYYY-MM-DD)
+      responses:
+        '200':
+          description: Exported logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LogEntry'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/import/accounts:
+    post:
+      tags: [Import]
+      summary: Import accounts
+      description: Import accounts from JSON array. Upserts by (provider, email).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                required: [provider, email]
+                properties:
+                  provider:
+                    type: string
+                  email:
+                    type: string
+                  password:
+                    type: string
+                  status:
+                    type: string
+                  enabled:
+                    type: boolean
+                  metadata:
+                    type: string
+      responses:
+        '200':
+          description: Import results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inserted:
+                    type: integer
+                  updated:
+                    type: integer
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Relay ──
+  /api/relay/nodes:
+    get:
+      tags: [Relay]
+      summary: List relay nodes
+      description: Returns all configured relay nodes.
+      responses:
+        '200':
+          description: Relay nodes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RelayNode'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [Relay]
+      summary: Create relay node
+      description: Add a new relay node.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                name:
+                  type: string
+                secret:
+                  type: string
+      responses:
+        '201':
+          description: Relay node created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: created
+        '400':
+          description: URL required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/relay/nodes/{id}:
+    delete:
+      tags: [Relay]
+      summary: Delete relay node
+      description: Remove a relay node.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Relay node deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/relay/stats:
+    get:
+      tags: [Relay]
+      summary: Relay stats
+      description: Returns relay node statistics (active/inactive counts).
+      responses:
+        '200':
+          description: Relay stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  active:
+                    type: integer
+                  inactive:
+                    type: integer
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Replay ──
+  /api/replay:
+    get:
+      tags: [Replay]
+      summary: List replay queue
+      description: Returns up to 500 items from the request replay queue.
+      responses:
+        '200':
+          description: Replay items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    provider:
+                      type: string
+                    model:
+                      type: string
+                    replay_status:
+                      type: string
+                    created_at:
+                      type: integer
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [Replay]
+      summary: Enqueue replay
+      description: Add a request to the replay queue.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider]
+              properties:
+                provider:
+                  type: string
+                model:
+                  type: string
+      responses:
+        '201':
+          description: Enqueued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+        '400':
+          description: Provider required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/replay/{id}:
+    delete:
+      tags: [Replay]
+      summary: Remove from replay
+      description: Remove a request from the replay queue.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: removed
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/replay/stats:
+    get:
+      tags: [Replay]
+      summary: Replay stats
+      description: Returns replay queue statistics grouped by status.
+      responses:
+        '200':
+          description: Replay stats
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: integer
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: API key obtained from POST /api/keys. Pass as `Authorization: Bearer <key>`.
+
+  schemas:
+    Account:
+      type: object
+      properties:
+        id:
+          type: integer
+        provider:
+          type: string
+        email:
+          type: string
+        status:
+          type: string
+          enum: [active, pending, disabled, error]
+        enabled:
+          type: boolean
+        quota_limit:
+          type: number
+        quota_remaining:
+          type: number
+        last_used_at:
+          type: integer
+          format: int64
+        created_at:
+          type: integer
+          format: int64
+
+    ApiKey:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        key_hash:
+          type: string
+          description: SHA-256 hash of the key — plaintext never stored
+        created_at:
+          type: integer
+          format: int64
+        last_used_at:
+          type: integer
+          format: int64
+        enabled:
+          type: boolean
+
+    ProviderConfig:
+      type: object
+      properties:
+        provider:
+          type: string
+        base_url:
+          type: string
+        models:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+        extra:
+          type: object
+        updated_at:
+          type: integer
+          format: int64
+
+    Proxy:
+      type: object
+      properties:
+        id:
+          type: integer
+        url:
+          type: string
+        type:
+          type: string
+          enum: [http, https, socks4, socks5]
+        label:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+        success_count:
+          type: integer
+        fail_count:
+          type: integer
+        created_at:
+          type: integer
+          format: int64
+
+    VccCard:
+      type: object
+      properties:
+        id:
+          type: integer
+        number_masked:
+          type: string
+          example: "****-****-****-1234"
+        bin:
+          type: string
+        exp_month:
+          type: string
+        exp_year:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, used, expired]
+        success_count:
+          type: integer
+        fail_count:
+          type: integer
+        created_at:
+          type: integer
+          format: int64
+
+    VccTransaction:
+      type: object
+      properties:
+        id:
+          type: integer
+        card_id:
+          type: integer
+        account_id:
+          type: integer
+        amount:
+          type: number
+        status:
+          type: string
+        created_at:
+          type: integer
+          format: int64
+
+    ModelCombo:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        label:
+          type: string
+        models_json:
+          type: string
+          description: JSON array of model IDs in fallback order
+        enabled:
+          type: boolean
+        created_at:
+          type: integer
+          format: int64
+
+    Filter:
+      type: object
+      properties:
+        rule_id:
+          type: string
+        pattern:
+          type: string
+        replacement:
+          type: string
+        is_active:
+          type: integer
+        is_regex:
+          type: integer
+        sort_order:
+          type: integer
+
+    Setting:
+      type: object
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+
+    LogEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        provider:
+          type: string
+        model:
+          type: string
+        status:
+          type: string
+          enum: [success, error, timeout, rate_limited]
+        duration_ms:
+          type: integer
+        total_tokens:
+          type: integer
+        credits_used:
+          type: number
+        error_message:
+          type: string
+        created_at:
+          type: integer
+          format: int64
+
+    Stats:
+      type: object
+      properties:
+        total_accounts:
+          type: integer
+        active_accounts:
+          type: integer
+        total_requests:
+          type: integer
+        success_rate:
+          type: number
+        avg_response_ms:
+          type: number
+        cache_hit_rate:
+          type: number
+        providers_active:
+          type: integer
+
+    ImageRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        provider:
+          type: string
+        prompt:
+          type: string
+        file_type:
+          type: string
+        local_path:
+          type: string
+        file_size:
+          type: integer
+        created_at:
+          type: integer
+          format: int64
+
+    RelayNode:
+      type: object
+      properties:
+        id:
+          type: integer
+        url:
+          type: string
+        name:
+          type: string
+        secret:
+          type: string
+        active:
+          type: boolean
+        created_at:
+          type: integer
+          format: int64
+
+    ChatCompletionRequest:
+      type: object
+      required: [model, messages]
+      properties:
+        model:
+          type: string
+          description: Model ID or combo name
+        messages:
+          type: array
+          items:
+            type: object
+            required: [role, content]
+            properties:
+              role:
+                type: string
+                enum: [system, user, assistant, tool]
+              content:
+                type: string
+              tool_calls:
+                type: array
+                items:
+                  type: object
+              tool_call_id:
+                type: string
+        temperature:
+          type: number
+          default: 1.0
+        max_tokens:
+          type: integer
+        stream:
+          type: boolean
+          default: false
+        top_p:
+          type: number
+        presence_penalty:
+          type: number
+        frequency_penalty:
+          type: number
+        stop:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        tools:
+          type: array
+          items:
+            type: object
+        user:
+          type: string
+
+    ChatCompletionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          example: chat.completion
+        created:
+          type: integer
+          format: int64
+        model:
+          type: string
+        choices:
+          type: array
+          items:
+            type: object
+            properties:
+              index:
+                type: integer
+              message:
+                type: object
+                properties:
+                  role:
+                    type: string
+                    example: assistant
+                  content:
+                    type: string
+              finish_reason:
+                type: string
+                enum: [stop, length, tool_calls, content_filter]
+        usage:
+          type: object
+          properties:
+            prompt_tokens:
+              type: integer
+            completion_tokens:
+              type: integer
+            total_tokens:
+              type: integer
+
+    GenerationResponse:
+      type: object
+      properties:
+        created:
+          type: integer
+          format: int64
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              url:
+                type: string
+              b64_json:
+                type: string
+              revised_prompt:
+                type: string
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string

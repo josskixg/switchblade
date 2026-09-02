@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 350" width="100%" height="100%">
+  <!-- Defs / Gradients / Glows -->
+  <defs>
+    <linearGradient id="cyberGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00F2FE" />
+      <stop offset="50%" stop-color="#4FACFE" />
+      <stop offset="100%" stop-color="#7000FF" />
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#060913" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </linearGradient>
+    <linearGradient id="metalGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1E293B" />
+      <stop offset="50%" stop-color="#475569" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </linearGradient>
+    <pattern id="bannerGrid" width="25" height="25" patternUnits="userSpaceOnUse">
+      <path d="M 25 0 L 0 0 0 25" fill="none" stroke="rgba(0, 242, 254, 0.02)" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <style>
+    @keyframes bannerGlow {
+      0%, 100% { opacity: 0.8; }
+      50% { opacity: 1; }
+    }
+    @keyframes slideShimmer {
+      0% { stroke-dashoffset: 600; }
+      100% { stroke-dashoffset: 0; }
+    }
+    @keyframes bladeLaunch {
+      0% { transform: scaleX(0.2) rotate(-15deg); transform-origin: 100px 175px; opacity: 0; }
+      50% { opacity: 0.5; }
+      100% { transform: scaleX(1) rotate(0deg); transform-origin: 100px 175px; opacity: 1; }
+    }
+    @keyframes textFade {
+      0% { opacity: 0; transform: translateY(15px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulseCircle {
+      0%, 100% { transform: scale(1); opacity: 0.2; }
+      50% { transform: scale(1.15); opacity: 0.5; }
+    }
+    
+    .glow-edge {
+      animation: bannerGlow 4s infinite ease-in-out;
+    }
+    .blade-launch {
+      transform-origin: 100px 175px;
+      animation: bladeLaunch 1.5s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+    }
+    .text-sub {
+      animation: textFade 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.8s forwards;
+    }
+    .pulse-ring {
+      transform-origin: 100px 175px;
+      animation: pulseCircle 3s infinite ease-in-out;
+    }
+    .shimmer-line {
+      stroke-dasharray: 300;
+      stroke-dashoffset: 0;
+      animation: slideShimmer 3s infinite linear;
+    }
+  </style>
+
+  <!-- Background -->
+  <rect width="1000" height="350" fill="url(#bgGrad)" rx="16" stroke="#1E293B" stroke-width="2"/>
+  <rect width="1000" height="350" fill="url(#bannerGrid)" rx="16" pointer-events="none"/>
+
+  <!-- Glowing background elements / tech rings -->
+  <circle cx="100" cy="175" r="90" fill="none" stroke="#7000FF" stroke-width="1" class="pulse-ring" />
+  <circle cx="100" cy="175" r="140" fill="none" stroke="#00F2FE" stroke-width="0.5" opacity="0.1" />
+
+  <!-- Geometric grid details on right side -->
+  <path d="M 850,50 L 950,50 M 950,50 L 950,150" stroke="#334155" stroke-width="2" fill="none" opacity="0.3"/>
+  <path d="M 950,300 L 850,300 M 950,300 L 950,200" stroke="#334155" stroke-width="2" fill="none" opacity="0.3"/>
+  <circle cx="950" cy="50" r="4" fill="#7000FF" opacity="0.5"/>
+  <circle cx="950" cy="300" r="4" fill="#00F2FE" opacity="0.5"/>
+
+  <!-- Cybernetic Knife Graphic (unfolds from left side) -->
+  <g class="blade-launch">
+    <!-- Hilt / Base -->
+    <path d="M 40,210 L 85,140 L 130,140 L 85,210 Z" fill="url(#metalGrad)" stroke="#475569" stroke-width="2"/>
+    <circle cx="85" cy="175" r="6" fill="#00F2FE" />
+    <circle cx="85" cy="175" r="12" fill="none" stroke="#00F2FE" stroke-width="1.5" />
+    
+    <!-- Glowing Cyber Dagger Blade -->
+    <path d="M 125,175 L 280,75 L 340,175 L 185,175 Z" fill="url(#cyberGrad)" class="glow-edge"/>
+    <path d="M 125,175 L 280,75 L 340,175 Z" fill="rgba(255,255,255,0.1)"/>
+    <!-- Blade energy lines -->
+    <line x1="140" y1="165" x2="270" y2="95" stroke="#FFFFFF" stroke-width="2" opacity="0.7"/>
+    <line x1="170" y1="155" x2="300" y2="155" stroke="#7000FF" stroke-width="2" opacity="0.6"/>
+  </g>
+
+  <!-- Repository Title Section -->
+  <g transform="translate(390, 160)">
+    <!-- Tech brackets around the text -->
+    <path d="M -15,-60 L -15,-90 L 10,-90" stroke="#00F2FE" stroke-width="3" fill="none" opacity="0.8"/>
+    <path d="M 460,-60 L 460,-90 L 435,-90" stroke="#7000FF" stroke-width="3" fill="none" opacity="0.8"/>
+    
+    <!-- Wordmark (Responsive textLength constraints) -->
+    <text x="0" y="-35" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="64" font-weight="900" letter-spacing="10" fill="url(#cyberGrad)" textLength="440" lengthAdjust="spacingAndGlyphs" class="glow-edge">SWITCHBLADE</text>
+    
+    <!-- Horizontal animated scanline -->
+    <line x1="-10" y1="-10" x2="450" y2="-10" stroke="#1E293B" stroke-width="2"/>
+    <line x1="-10" y1="-10" x2="450" y2="-10" stroke="url(#cyberGrad)" stroke-width="2" class="shimmer-line"/>
+    
+    <!-- Description subtext -->
+    <g class="text-sub">
+      <text x="5" y="25" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="600" fill="#E2E8F0" letter-spacing="4" textLength="430" lengthAdjust="spacingAndGlyphs">THE HIGH-EFFICIENCY AI PROXY POOL</text>
+      <text x="5" y="52" font-family="'Courier New', Courier, monospace" font-size="11" font-weight="bold" fill="#64748B" letter-spacing="1.5" textLength="430" lengthAdjust="spacingAndGlyphs">SINGLE BINARY • UNDER 20MB RAM • 30+ PROVIDERS</text>
+    </g>
+  </g>
+</svg>

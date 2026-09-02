@@ -1,0 +1,26 @@
+services:
+  switchblade:
+    build: .
+    ports:
+      - "1930:1930"
+      - "1931:1931"
+    environment:
+      - PORT=1930
+      - DASHBOARD_PORT=1931
+      - DATABASE_PATH=/data/switchblade.db
+      - BACKUP_DIR=/backups
+      - ADMIN_KEY=switchblade-admin-key
+    volumes:
+      - switchblade_data:/data
+      - switchblade_backups:/backups
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:1930/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  switchblade_data:
+  switchblade_backups:
