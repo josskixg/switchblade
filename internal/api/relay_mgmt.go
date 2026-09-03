@@ -3,7 +3,7 @@ package api
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -35,7 +35,7 @@ func listRelayNodes(database *db.DB) http.HandlerFunc {
 		rows, err := database.Query(
 			`SELECT id, url, name, secret, active, created_at FROM relay_nodes ORDER BY id DESC`)
 		if err != nil {
-			log.Printf("[api] list relay nodes failed: %v", err)
+			slog.Error("[api] list relay nodes failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -77,7 +77,7 @@ func createRelayNode(database *db.DB) http.HandlerFunc {
 			body.URL, body.Name, body.Secret, time.Now().Unix(),
 		)
 		if err != nil {
-			log.Printf("[api] create relay node failed: %v", err)
+			slog.Error("[api] create relay node failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -90,7 +90,7 @@ func deleteRelayNode(database *db.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
 		if _, err := database.Exec(`DELETE FROM relay_nodes WHERE id = ?`, id); err != nil {
-			log.Printf("[api] delete relay node failed: %v", err)
+			slog.Error("[api] delete relay node failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}

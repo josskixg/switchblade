@@ -2,7 +2,8 @@ package auth
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"log/slog"
 	"time"
 )
 
@@ -30,14 +31,14 @@ func (s *Scheduler) Start() {
 	go func() {
 		ticker := time.NewTicker(s.interval)
 		defer ticker.Stop()
-		log.Printf("[auth/scheduler] warmup scheduled every %v", s.interval)
+		slog.Info(fmt.Sprintf("[auth/scheduler] warmup scheduled every %v", s.interval))
 		for {
 			select {
 			case <-s.ctx.Done():
-				log.Printf("[auth/scheduler] stopped")
+				slog.Info("[auth/scheduler] stopped")
 				return
 			case <-ticker.C:
-				log.Printf("[auth/scheduler] running warmup")
+				slog.Info("[auth/scheduler] running warmup")
 				s.wq.RunOnce(s.ctx)
 			}
 		}

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -52,6 +52,6 @@ func (db *DB) Migrate() error {
 	if err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
-	log.Println("[DB] schema applied")
+	slog.Info("[DB] schema applied")
 	return nil
 }

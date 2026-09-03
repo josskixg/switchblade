@@ -7,7 +7,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"log"
+	"log/slog"
 	"math/big"
 	"os"
 	"os/exec"
@@ -27,7 +27,7 @@ type CA struct {
 // LoadOrGenerateCA loads the CA from disk or generates a new one.
 func LoadOrGenerateCA(certPath, keyPath string) (*CA, error) {
 	if cert, key, err := loadCAFromDisk(certPath, keyPath); err == nil {
-		log.Printf("[mitm/ca] loaded existing CA from %s", certPath)
+		slog.Info(fmt.Sprintf("[mitm/ca] loaded existing CA from %s", certPath))
 		return &CA{
 			Cert:    cert,
 			Key:     key,
@@ -36,7 +36,7 @@ func LoadOrGenerateCA(certPath, keyPath string) (*CA, error) {
 		}, nil
 	}
 
-	log.Printf("[mitm/ca] generating new root CA")
+	slog.Info("[mitm/ca] generating new root CA")
 	ca, err := generateCA()
 	if err != nil {
 		return nil, err
@@ -169,7 +169,7 @@ func (ca *CA) InstallSystemTrust() error {
 		return fmt.Errorf("unsupported OS for system trust install: %s", runtime.GOOS)
 	}
 
-	log.Printf("[mitm/ca] installed root CA into system trust store")
+	slog.Info("[mitm/ca] installed root CA into system trust store")
 	return nil
 }
 
@@ -191,6 +191,6 @@ func UninstallSystemTrust() error {
 	default:
 		return fmt.Errorf("unsupported OS: %s", runtime.GOOS)
 	}
-	log.Printf("[mitm/ca] removed root CA from system trust store")
+	slog.Info("[mitm/ca] removed root CA from system trust store")
 	return nil
 }

@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -96,7 +96,7 @@ func proxyImageGeneration(database *db.DB, storageDir string) http.HandlerFunc {
 
 		httpReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, endpoint, nil)
 		if err != nil {
-			log.Printf("[api] build provider request failed: %v", err)
+			slog.Error("[api] build provider request failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -109,7 +109,7 @@ func proxyImageGeneration(database *db.DB, storageDir string) http.HandlerFunc {
 		client := &http.Client{Timeout: 120 * time.Second}
 		resp, err := client.Do(httpReq)
 		if err != nil {
-			log.Printf("[api] provider request failed: %v", err)
+			slog.Error("[api] provider request failed", "err", err)
 			jsonError(w, http.StatusBadGateway, "image generation failed")
 			return
 		}
@@ -127,13 +127,13 @@ func proxyImageGeneration(database *db.DB, storageDir string) http.HandlerFunc {
 			return
 		}
 		if err := json.Unmarshal(respBytes, &provResp); err != nil {
-			log.Printf("[api] parse provider response failed: %v", err)
+			slog.Error("[api] parse provider response failed", "err", err)
 			jsonError(w, http.StatusBadGateway, "image generation failed")
 			return
 		}
 
 		if err := os.MkdirAll(storageDir, 0o755); err != nil {
-			log.Printf("[api] create storage dir failed: %v", err)
+			slog.Error("[api] create storage dir failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -213,7 +213,7 @@ func retrieveProxiedImage(database *db.DB) http.HandlerFunc {
 		w.Header().Set("Content-Type", mime)
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write(data); err != nil {
-			log.Printf("[images] write response: %v", err)
+			slog.Warn("[images] write response", "err", err)
 		}
 	}
 }

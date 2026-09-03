@@ -4,7 +4,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -54,7 +54,7 @@ func listAccounts(database *db.DB) http.HandlerFunc {
 				`SELECT id, provider, email, status, enabled, quota_limit, quota_remaining, last_used_at, created_at FROM accounts ORDER BY id DESC`)
 		}
 		if err != nil {
-			log.Printf("[api] list accounts failed: %v", err)
+			slog.Error("[api] list accounts failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -100,7 +100,7 @@ func createAccount(database *db.DB) http.HandlerFunc {
 			body.Provider, body.Email, encryptedPassword, body.Tokens, body.Quota, body.Quota, now, now,
 		)
 		if err != nil {
-			log.Printf("[api] create account failed: %v", err)
+			slog.Error("[api] create account failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -136,8 +136,34 @@ func updateAccount(database *db.DB) http.HandlerFunc {
 func deleteAccount(database *db.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
-		if _, err := database.Exec(`DELETE FROM accounts WHERE id = ?`, id); err != nil {
-			log.Printf("[api] delete account failed: %v", err)
+		// FKs: request_logs.account_id, vcc_cards.used_by_account_id, vcc_transactions.account_id
+		// Without nulling them, DELETE fails with FK violation when account has history.
+		tx, err := database.Begin()
+		if err != nil {
+			slog.Error("[api] delete account tx begin", "err", err)
+			jsonError(w, http.StatusInternalServerError, "internal server error")
+			return
+		}
+		defer tx.Rollback()
+		for _, q := range []string{
+			`UPDATE request_logs SET account_id = NULL WHERE account_id = ?`,
+			`UPDATE vcc_cards SET used_by_account_id = NULL WHERE used_by_account_id = ?`,
+			`UPDATE vcc_transactions SET account_id = NULL WHERE account_id = ?`,
+			`UPDATE mitm_sessions SET account_id = NULL WHERE account_id = ?`,
+		} {
+			if _, err := tx.Exec(q, id); err != nil {
+				slog.Error("[api] delete account FK cleanup", "err", err)
+				jsonError(w, http.StatusInternalServerError, "internal server error")
+				return
+			}
+		}
+		if _, err := tx.Exec(`DELETE FROM accounts WHERE id = ?`, id); err != nil {
+			slog.Error("[api] delete account failed", "err", err)
+			jsonError(w, http.StatusInternalServerError, "internal server error")
+			return
+		}
+		if err := tx.Commit(); err != nil {
+			slog.Error("[api] delete account commit", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -155,7 +181,7 @@ func getStats(database *db.DB) http.HandlerFunc {
 		}
 		stats, err := database.GetUsageStats(since)
 		if err != nil {
-			log.Printf("[api] get stats failed: %v", err)
+			slog.Error("[api] get stats failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -173,7 +199,7 @@ func getLogs(database *db.DB) http.HandlerFunc {
 		}
 		logs, err := database.GetRecentLogs(limit)
 		if err != nil {
-			log.Printf("[api] get logs failed: %v", err)
+			slog.Error("[api] get logs failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -187,7 +213,7 @@ func getSettings(database *db.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		rows, err := database.Query(`SELECT key, value FROM settings ORDER BY key`)
 		if err != nil {
-			log.Printf("[api] get settings failed: %v", err)
+			slog.Error("[api] get settings failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -218,7 +244,7 @@ func setSetting(database *db.DB) http.HandlerFunc {
 			body.Key, body.Value,
 		)
 		if err != nil {
-			log.Printf("[api] set setting failed: %v", err)
+			slog.Error("[api] set setting failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -233,7 +259,7 @@ func listFilters(database *db.DB) http.HandlerFunc {
 		rows, err := database.Query(
 			`SELECT rule_id, pattern, replacement, is_active, is_regex, sort_order FROM filter_rules ORDER BY sort_order`)
 		if err != nil {
-			log.Printf("[api] list filters failed: %v", err)
+			slog.Error("[api] list filters failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -282,7 +308,7 @@ func createFilter(database *db.DB) http.HandlerFunc {
 			body.RuleID, body.Pattern, body.Replacement, isRegex, body.SortOrder,
 		)
 		if err != nil {
-			log.Printf("[api] create filter failed: %v", err)
+			slog.Error("[api] create filter failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -295,7 +321,7 @@ func deleteFilter(database *db.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
 		if _, err := database.Exec(`DELETE FROM filter_rules WHERE rule_id = ?`, id); err != nil {
-			log.Printf("[api] delete filter failed: %v", err)
+			slog.Error("[api] delete filter failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}

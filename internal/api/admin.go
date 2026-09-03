@@ -3,7 +3,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -42,7 +42,7 @@ func listTenants(database *db.DB) http.HandlerFunc {
 			LEFT JOIN tiers ti ON ti.id = t.tier_id
 			ORDER BY t.created_at DESC`, time.Now().Add(-24*time.Hour).Unix())
 		if err != nil {
-			log.Printf("[api] list tenants failed: %v", err)
+			slog.Error("[api] list tenants failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}

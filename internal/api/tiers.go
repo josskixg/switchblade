@@ -4,7 +4,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -30,7 +30,7 @@ func handleListTiers(database *db.DB) http.HandlerFunc {
 		rows, err := database.Query(
 			`SELECT id, name, description, max_api_keys, max_models, rate_limit_per_minute, daily_token_limit, monthly_price_cents, created_at FROM tiers ORDER BY monthly_price_cents`)
 		if err != nil {
-			log.Printf("[api] list tiers failed: %v", err)
+			slog.Error("[api] list tiers failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -78,7 +78,7 @@ func handleGetTier(database *db.DB) http.HandlerFunc {
 			if err == sql.ErrNoRows {
 				jsonError(w, http.StatusNotFound, "tier not found")
 			} else {
-				log.Printf("[api] get tier failed: %v", err)
+				slog.Error("[api] get tier failed", "err", err)
 				jsonError(w, http.StatusInternalServerError, "internal server error")
 			}
 			return
@@ -107,7 +107,7 @@ func handleGetTierDefaults(database *db.DB) http.HandlerFunc {
 		rows, err := database.Query(
 			`SELECT name, max_api_keys, max_models, rate_limit_per_minute, daily_token_limit FROM tiers ORDER BY monthly_price_cents`)
 		if err != nil {
-			log.Printf("[api] get tier defaults failed: %v", err)
+			slog.Error("[api] get tier defaults failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -157,7 +157,7 @@ func handleCreateTier(database *db.DB) http.HandlerFunc {
 			body.RateLimitPerMin, body.DailyTokenLimit, body.MonthlyPriceCents, time.Now().Unix(),
 		)
 		if err != nil {
-			log.Printf("[api] create tier failed: %v", err)
+			slog.Error("[api] create tier failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -191,7 +191,7 @@ func handleUpdateTier(database *db.DB) http.HandlerFunc {
 			body.RateLimitPerMin, body.DailyTokenLimit, body.MonthlyPriceCents, time.Now().Unix(), id,
 		)
 		if err != nil {
-			log.Printf("[api] update tier failed: %v", err)
+			slog.Error("[api] update tier failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -203,7 +203,7 @@ func handleDeleteTier(database *db.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
 		if _, err := database.Exec(`DELETE FROM tiers WHERE id = ?`, id); err != nil {
-			log.Printf("[api] delete tier failed: %v", err)
+			slog.Error("[api] delete tier failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -229,7 +229,7 @@ func handleAssignTenantTier(database *db.DB) http.HandlerFunc {
 			if err == sql.ErrNoRows {
 				jsonError(w, http.StatusNotFound, "tenant not found")
 			} else {
-				log.Printf("[api] assign tier: tenant lookup failed: %v", err)
+				slog.Error("[api] assign tier: tenant lookup failed", "err", err)
 				jsonError(w, http.StatusInternalServerError, "internal server error")
 			}
 			return
@@ -264,7 +264,7 @@ func handleAssignTenantTier(database *db.DB) http.HandlerFunc {
 			body.TierID, time.Now().Unix(), tenantID,
 		)
 		if err != nil {
-			log.Printf("[api] assign tier failed: %v", err)
+			slog.Error("[api] assign tier failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}

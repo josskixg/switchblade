@@ -6,7 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -25,9 +25,12 @@ type WebhookEvent struct {
 // Runs asynchronously — caller does not wait.
 func FireWebhooks(ctx context.Context, database *db.DB, event string, data map[string]any) {
 	go func() {
+		// Endpoint definitions live in `webhooks` (url, secret, events);
+		// `webhook_logs` is the delivery history — querying it for config
+		// meant the query failed against a missing column and no webhook
+		// ever fired.
 		rows, err := database.Query(
-			`SELECT id, url, secret FROM webhook_logs WHERE event_type = ? AND status = 'active'`,
-			event,
+			`SELECT id, url, secret FROM webhooks WHERE enabled = 1`,
 		)
 		if err != nil {
 			return
@@ -55,13 +58,13 @@ func FireWebhooks(ctx context.Context, database *db.DB, event string, data map[s
 func deliver(ctx context.Context, database *db.DB, webhookID int64, url, secret string, body []byte) {
 	const maxAttempts = 3
 	if err := ssrf.ValidateURL(url); err != nil {
-		log.Printf("[webhook] SSRF validation rejected URL %s: %v", url, err)
+		slog.Info(fmt.Sprintf("[webhook] SSRF validation rejected URL %s: %v", url, err))
 		return
 	}
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		select {
 		case <-ctx.Done():
-			log.Printf("[webhook] delivery cancelled")
+			slog.Info("[webhook] delivery cancelled")
 			return
 		default:
 		}
@@ -88,9 +91,10 @@ func deliver(ctx context.Context, database *db.DB, webhookID int64, url, secret 
 				errMsg = fmt.Sprintf("HTTP %d", resp.StatusCode)
 			}
 		}
-		// log delivery attempt
+		// log delivery attempt — webhook_logs columns are (event, url, status,
+		// error_message, retries, created_at); the old names never existed.
 		_, _ = database.Exec(
-			`INSERT INTO webhook_logs (event_type, url, status, error_message, attempt, created_at)
+			`INSERT INTO webhook_logs (event, url, status, error_message, retries, created_at)
 			 VALUES (?, ?, ?, ?, ?, ?)`,
 			"delivery", url, status, errMsg, attempt, time.Now().Unix(),
 		)
@@ -101,5 +105,5 @@ func deliver(ctx context.Context, database *db.DB, webhookID int64, url, secret 
 			time.Sleep(time.Duration(attempt*attempt) * time.Second) // 1s, 4s backoff
 		}
 	}
-	log.Printf("[webhook] delivery failed after %d attempts: %s", maxAttempts, url)
+	slog.Error("[webhook] delivery failed", "attempts", maxAttempts, "url", url)
 }

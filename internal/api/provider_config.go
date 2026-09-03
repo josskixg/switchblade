@@ -2,7 +2,7 @@ package api
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -25,7 +25,7 @@ func listProviderConfigs(database *db.DB) http.HandlerFunc {
 		rows, err := database.Query(
 			`SELECT provider, base_url, models, enabled, extra, updated_at FROM provider_config ORDER BY provider`)
 		if err != nil {
-			log.Printf("[api] list provider configs failed: %v", err)
+			slog.Error("[api] list provider configs failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -91,7 +91,7 @@ func upsertProviderConfig(database *db.DB) http.HandlerFunc {
 			 VALUES (?, ?, ?, ?, ?, ?)`,
 			body.Provider, body.BaseURL, models, enabled, extra, now)
 		if err != nil {
-			log.Printf("[api] upsert provider config failed: %v", err)
+			slog.Error("[api] upsert provider config failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -103,7 +103,7 @@ func deleteProviderConfig(database *db.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		provider := chi.URLParam(r, "provider")
 		if _, err := database.Exec(`DELETE FROM provider_config WHERE provider = ?`, provider); err != nil {
-			log.Printf("[api] delete provider config failed: %v", err)
+			slog.Error("[api] delete provider config failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}

@@ -3,7 +3,7 @@ package mitm
 import (
 	"bufio"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"runtime"
 	"strings"
@@ -63,7 +63,7 @@ func (h *DNSHijacker) Install(domains []string) error {
 		return fmt.Errorf("write hosts file: %w", err)
 	}
 
-	log.Printf("[mitm/dns] installed %d hosts entries", len(domains))
+	slog.Info(fmt.Sprintf("[mitm/dns] installed %d hosts entries", len(domains)))
 	return nil
 }
 
@@ -86,7 +86,7 @@ func (h *DNSHijacker) Uninstall() error {
 	}
 
 	h.entries = make(map[string]string)
-	log.Printf("[mitm/dns] uninstalled hosts entries")
+	slog.Info("[mitm/dns] uninstalled hosts entries")
 	return nil
 }
 

@@ -3,7 +3,8 @@ package proxy
 
 import (
 	"context"
-	"log"
+	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -103,12 +104,27 @@ func clientKey(r *http.Request) string {
 }
 
 func stripPort(addr string) string {
+	// ponytail: net.SplitHostPort handles IPv6 bracketed addrs correctly
+	if h, _, err := netSplitHostPort(addr); err == nil {
+		return h
+	}
+	// Fallback for bare IP without port
+	if strings.HasPrefix(addr, "[") {
+		if end := strings.Index(addr, "]"); end != -1 {
+			return addr[1:end]
+		}
+	}
 	for i := len(addr) - 1; i >= 0; i-- {
-		if addr[i] == ':' {
+		if addr[i] == ':' && strings.Count(addr, ":") == 1 {
 			return addr[:i]
 		}
 	}
 	return addr
+}
+
+// netSplitHostPort wraps net.SplitHostPort with bracket fallback.
+func netSplitHostPort(addr string) (string, string, error) {
+	return net.SplitHostPort(addr)
 }
 
 // cleanupLoop evicts idle buckets every 5 minutes.
@@ -118,7 +134,7 @@ func (rl *RateLimiter) cleanupLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("[ratelimit] cleanup stopped")
+			slog.Info("[ratelimit] cleanup stopped")
 			return
 		case <-t.C:
 			rl.mu.Lock()

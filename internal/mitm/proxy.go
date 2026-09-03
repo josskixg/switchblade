@@ -6,7 +6,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -67,11 +67,11 @@ func (p *Proxy) Start() error {
 	p.running = true
 	p.mu.Unlock()
 
-	log.Printf("[mitm] proxy listening on %s", addr)
+	slog.Info(fmt.Sprintf("[mitm] proxy listening on %s", addr))
 
 	go func() {
 		if err := p.server.Serve(listener); err != nil && err != http.ErrServerClosed {
-			log.Printf("[mitm] server error: %v", err)
+			slog.Error("[mitm] server error", "err", err)
 			p.mu.Lock()
 			p.running = false
 			p.mu.Unlock()
@@ -106,7 +106,7 @@ func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 
 	clientConn, _, err := hijacker.Hijack()
 	if err != nil {
-		log.Printf("[mitm] hijack failed: %v", err)
+		slog.Error("[mitm] hijack failed", "err", err)
 		return
 	}
 
@@ -122,7 +122,7 @@ func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 	// Get or generate TLS cert for this domain
 	tlsCert, err := p.certs.GetCert(hostname)
 	if err != nil {
-		log.Printf("[mitm] cert for %s: %v", hostname, err)
+		slog.Info(fmt.Sprintf("[mitm] cert for %s: %v", hostname, err))
 		clientConn.Close()
 		return
 	}
@@ -133,7 +133,7 @@ func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	tlsConn := tls.Server(clientConn, tlsConfig)
 	if err := tlsConn.Handshake(); err != nil {
-		log.Printf("[mitm] tls handshake %s: %v", hostname, err)
+		slog.Info(fmt.Sprintf("[mitm] tls handshake %s: %v", hostname, err))
 		clientConn.Close()
 		return
 	}
@@ -150,7 +150,7 @@ func (p *Proxy) handleTLSConn(conn *tls.Conn, hostname string) {
 		req, err := http.ReadRequest(reader)
 		if err != nil {
 			if err != io.EOF {
-				log.Printf("[mitm] read request from %s: %v", hostname, err)
+				slog.Info(fmt.Sprintf("[mitm] read request from %s: %v", hostname, err))
 			}
 			return
 		}
@@ -178,7 +178,7 @@ func (p *Proxy) intercept(clientConn *tls.Conn, req *http.Request, h handlers.Ha
 	// Parse the request to get provider and model
 	provider, model, err := h.Parse(req)
 	if err != nil {
-		log.Printf("[mitm] parse %s: %v", h.Name(), err)
+		slog.Warn("[mitm] handler parse failed", "handler", h.Name(), "err", err)
 		p.writeError(clientConn, http.StatusBadRequest, "parse error")
 		return
 	}
@@ -186,14 +186,14 @@ func (p *Proxy) intercept(clientConn *tls.Conn, req *http.Request, h handlers.Ha
 	// Pick an account from the pool
 	pool, ok := p.pools[provider]
 	if !ok {
-		log.Printf("[mitm] no pool for provider %s", provider)
+		slog.Info(fmt.Sprintf("[mitm] no pool for provider %s", provider))
 		p.writeError(clientConn, http.StatusBadGateway, "no pool for provider")
 		return
 	}
 
 	acc, err := pool.Pick(provider)
 	if err != nil {
-		log.Printf("[mitm] pick account for %s: %v", provider, err)
+		slog.Info(fmt.Sprintf("[mitm] pick account for %s: %v", provider, err))
 		p.writeError(clientConn, http.StatusServiceUnavailable, "no accounts available")
 		return
 	}
@@ -201,7 +201,7 @@ func (p *Proxy) intercept(clientConn *tls.Conn, req *http.Request, h handlers.Ha
 
 	// Rewrite the request with account credentials
 	if err := h.Rewrite(req, acc); err != nil {
-		log.Printf("[mitm] rewrite %s: %v", h.Name(), err)
+		slog.Warn("[mitm] handler rewrite failed", "handler", h.Name(), "err", err)
 		p.writeError(clientConn, http.StatusInternalServerError, "rewrite error")
 		return
 	}
@@ -209,7 +209,7 @@ func (p *Proxy) intercept(clientConn *tls.Conn, req *http.Request, h handlers.Ha
 	// Forward to the real upstream
 	resp, err := p.forwardRequest(req, hostname(req))
 	if err != nil {
-		log.Printf("[mitm] forward %s: %v", hostname(req), err)
+		slog.Warn("[mitm] forward failed", "host", hostname(req), "err", err)
 		p.writeError(clientConn, http.StatusBadGateway, "upstream error")
 		return
 	}
@@ -217,7 +217,7 @@ func (p *Proxy) intercept(clientConn *tls.Conn, req *http.Request, h handlers.Ha
 
 	// Write response back to client
 	if err := resp.Write(clientConn); err != nil {
-		log.Printf("[mitm] write response: %v", err)
+		slog.Warn("[mitm] write response", "err", err)
 	}
 
 	// Log session
@@ -229,14 +229,14 @@ func (p *Proxy) intercept(clientConn *tls.Conn, req *http.Request, h handlers.Ha
 func (p *Proxy) passthrough(clientConn *tls.Conn, req *http.Request, hostname string) {
 	resp, err := p.forwardRequest(req, hostname)
 	if err != nil {
-		log.Printf("[mitm] passthrough %s: %v", hostname, err)
+		slog.Info(fmt.Sprintf("[mitm] passthrough %s: %v", hostname, err))
 		p.writeError(clientConn, http.StatusBadGateway, "upstream error")
 		return
 	}
 	defer resp.Body.Close()
 
 	if err := resp.Write(clientConn); err != nil {
-		log.Printf("[mitm] write passthrough response: %v", err)
+		slog.Warn("[mitm] write passthrough response", "err", err)
 	}
 }
 
@@ -283,7 +283,7 @@ func (p *Proxy) logSession(ide, provider string, accountID int64, method, path s
 		ide, provider, accountID, method, path, statusCode, bytesSent,
 	)
 	if err != nil {
-		log.Printf("[mitm] log session: %v", err)
+		slog.Warn("[mitm] log session", "err", err)
 	}
 }
 

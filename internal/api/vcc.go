@@ -2,7 +2,7 @@ package api
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -27,7 +27,7 @@ func listVCCCards(database *db.DB) http.HandlerFunc {
 		rows, err := database.Query(
 			`SELECT id, number, bin, exp_month, exp_year, name, status, success_count, fail_count, created_at FROM vcc_cards ORDER BY id DESC`)
 		if err != nil {
-			log.Printf("[api] list vcc cards failed: %v", err)
+			slog.Error("[api] list vcc cards failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -87,7 +87,7 @@ func createVCCCard(database *db.DB) http.HandlerFunc {
 			body.Number, body.Bin, body.ExpMonth, body.ExpYear, encryptedCVV, body.Name, now, now,
 		)
 		if err != nil {
-			log.Printf("[api] create vcc card failed: %v", err)
+			slog.Error("[api] create vcc card failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -102,7 +102,7 @@ func deleteVCCCard(database *db.DB) http.HandlerFunc {
 		id := chi.URLParam(r, "id")
 		_, err := database.Exec(`DELETE FROM vcc_cards WHERE id = ?`, id)
 		if err != nil {
-			log.Printf("[api] delete vcc card failed: %v", err)
+			slog.Error("[api] delete vcc card failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -116,7 +116,7 @@ func listVCCTransactions(database *db.DB) http.HandlerFunc {
 			`SELECT id, account_id, card_id, card_last4, card_bin, card_brand, amount, currency, status, created_at
 			 FROM vcc_transactions ORDER BY id DESC LIMIT 500`)
 		if err != nil {
-			log.Printf("[api] list vcc transactions failed: %v", err)
+			slog.Error("[api] list vcc transactions failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -147,7 +147,7 @@ func vccAutoAssign(database *db.DB) http.HandlerFunc {
 		accRows, err := database.Query(
 			`SELECT id FROM accounts WHERE status = 'pending' AND enabled = 1 LIMIT 10`)
 		if err != nil {
-			log.Printf("[api] vcc auto assign failed: %v", err)
+			slog.Error("[api] vcc auto assign failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}

@@ -5,7 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -105,7 +105,7 @@ func HandleCreateUser(cfg AuthConfig) http.HandlerFunc {
 
 		passwordHash, err := auth.HashPassword(body.Password)
 		if err != nil {
-			log.Printf("[auth] hash password failed: %v", err)
+			slog.Error("[auth] hash password failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -192,7 +192,7 @@ func HandleLogin(cfg AuthConfig) http.HandlerFunc {
 			return
 		}
 		if err != nil {
-			log.Printf("[auth] login query failed: %v", err)
+			slog.Error("[auth] login query failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -214,7 +214,7 @@ func HandleLogin(cfg AuthConfig) http.HandlerFunc {
 			ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
 		}, cfg.JWTSecret)
 		if err != nil {
-			log.Printf("[auth] sign jwt failed: %v", err)
+			slog.Error("[auth] sign jwt failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -266,7 +266,7 @@ func HandleMe(cfg AuthConfig) http.HandlerFunc {
 			return
 		}
 		if err != nil {
-			log.Printf("[auth] me query failed: %v", err)
+			slog.Error("[auth] me query failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -302,7 +302,7 @@ func HandleRefreshToken(cfg AuthConfig) http.HandlerFunc {
 			ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
 		}, cfg.JWTSecret)
 		if err != nil {
-			log.Printf("[auth] refresh sign failed: %v", err)
+			slog.Error("[auth] refresh sign failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -332,7 +332,7 @@ func AuthJWT(jwtSecret []byte, db *sql.DB) func(http.Handler) http.Handler {
 
 			claims, err := auth.VerifyJWT(token, jwtSecret)
 			if err != nil {
-				log.Printf("[auth] jwt verify failed: %v", err)
+				slog.Error("[auth] jwt verify failed", "err", err)
 				jsonError(w, http.StatusUnauthorized, "invalid token")
 				return
 			}

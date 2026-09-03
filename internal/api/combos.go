@@ -3,7 +3,7 @@ package api
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -25,7 +25,7 @@ func listCombos(database *db.DB) http.HandlerFunc {
 		rows, err := database.Query(
 			`SELECT id, name, label, models_json, enabled, created_at FROM model_combos ORDER BY id DESC`)
 		if err != nil {
-			log.Printf("[api] list combos failed: %v", err)
+			slog.Error("[api] list combos failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -66,7 +66,7 @@ func createCombo(database *db.DB) http.HandlerFunc {
 			body.Name, body.Label, body.ModelsJSON, time.Now().Unix(),
 		)
 		if err != nil {
-			log.Printf("[api] create combo failed: %v", err)
+			slog.Error("[api] create combo failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -97,7 +97,7 @@ func updateCombo(database *db.DB) http.HandlerFunc {
 			body.Name, body.Label, body.ModelsJSON, enabled, time.Now().Unix(), id,
 		)
 		if err != nil {
-			log.Printf("[api] update combo failed: %v", err)
+			slog.Error("[api] update combo failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -109,7 +109,7 @@ func deleteCombo(database *db.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
 		if _, err := database.Exec(`DELETE FROM model_combos WHERE id = ?`, id); err != nil {
-			log.Printf("[api] delete combo failed: %v", err)
+			slog.Error("[api] delete combo failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}

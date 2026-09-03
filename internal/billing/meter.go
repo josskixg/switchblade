@@ -3,7 +3,8 @@ package billing
 import (
 	"database/sql"
 	"encoding/json"
-	"log"
+	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -102,7 +103,7 @@ func (m *Meter) run() {
 	defer close(m.done)
 	for ev := range m.events {
 		if err := m.persist(ev); err != nil {
-			log.Printf("[billing] persist request %s: %v", ev.RequestID, err)
+			slog.Info(fmt.Sprintf("[billing] persist request %s: %v", ev.RequestID, err))
 		}
 	}
 }
@@ -112,7 +113,7 @@ func (m *Meter) run() {
 func (m *Meter) persist(ev Event) error {
 	cost, priced := m.pricing.Cost(ev.Model, ev.Usage)
 	if !priced && ev.Usage.TotalTokens > 0 {
-		log.Printf("[billing] no rate card for model %q — recorded at zero cost", ev.Model)
+		slog.Info(fmt.Sprintf("[billing] no rate card for model %q — recorded at zero cost", ev.Model))
 	}
 	// Only successful, non-cached calls are charged: a failed request should not
 	// cost money, and a cache hit never reached a provider.

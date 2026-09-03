@@ -3,7 +3,7 @@ package api
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -25,7 +25,7 @@ func listProxies(database *db.DB) http.HandlerFunc {
 		rows, err := database.Query(
 			`SELECT id, url, type, label, status, success_count, fail_count, created_at FROM proxy_pool ORDER BY id DESC`)
 		if err != nil {
-			log.Printf("[api] list proxies failed: %v", err)
+			slog.Error("[api] list proxies failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -70,7 +70,7 @@ func addProxy(database *db.DB) http.HandlerFunc {
 			body.URL, body.Type, body.Label, time.Now().Unix(),
 		)
 		if err != nil {
-			log.Printf("[api] add proxy failed: %v", err)
+			slog.Error("[api] add proxy failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -105,7 +105,7 @@ func deleteProxy(database *db.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
 		if _, err := database.Exec(`DELETE FROM proxy_pool WHERE id = ?`, id); err != nil {
-			log.Printf("[api] delete proxy failed: %v", err)
+			slog.Error("[api] delete proxy failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}

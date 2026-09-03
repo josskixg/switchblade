@@ -3,9 +3,10 @@ package api
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -22,11 +23,23 @@ func MountKeysAPI(r chi.Router, database *db.DB) {
 
 func listKeys(database *db.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		rows, err := database.Query(
-			`SELECT id, name, key_hash, created_at, last_used_at, enabled FROM api_keys ORDER BY id`,
-		)
+		// Tenant-scoped listing: developers see only their tenant's keys.
+		// Legacy global-key callers carry no tenant — they see the unscoped
+		// legacy set, matching the behavior of the endpoints they were minted for.
+		ctxTenant, _ := r.Context().Value(ctxTenantID).(string)
+		ctxRole, _ := r.Context().Value(ctxRole).(string)
+
+		query := `SELECT id, name, key_hash, created_at, last_used_at, enabled FROM api_keys`
+		args := []any{}
+		if ctxTenant != "" && ctxRole != "owner" && ctxRole != "admin" {
+			query += ` WHERE tenant_id = ?`
+			args = append(args, ctxTenant)
+		}
+		query += ` ORDER BY id`
+
+		rows, err := database.Query(query, args...)
 		if err != nil {
-			log.Printf("[api] list keys failed: %v", err)
+			slog.Error("[api] list keys failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -45,7 +58,7 @@ func listKeys(database *db.DB) http.HandlerFunc {
 			var k keyRow
 			var enabled int
 			if err := rows.Scan(&k.ID, &k.Name, &k.KeyHash, &k.CreatedAt, &k.LastUsedAt, &enabled); err != nil {
-				log.Printf("[api] key scan failed: %v", err)
+				slog.Error("[api] key scan failed", "err", err)
 				jsonError(w, http.StatusInternalServerError, "internal server error")
 				return
 			}
@@ -77,13 +90,21 @@ func createKey(database *db.DB) http.HandlerFunc {
 		sum := sha256.Sum256([]byte(key))
 		hash := hex.EncodeToString(sum[:])
 
+		// Keys are tenant-scoped in schema_v2 — insert under the caller's tenant
+		// (or '_system' for legacy unscoped callers) so tenant listing/filtering works.
+		ctxTenant, _ := r.Context().Value(ctxTenantID).(string)
+		tenantID := ctxTenant
+		if tenantID == "" {
+			tenantID = "_system"
+		}
+
 		now := time.Now().Unix()
 		res, err := database.Exec(
-			`INSERT INTO api_keys (name, key_hash, created_at, last_used_at, enabled) VALUES (?, ?, ?, 0, 1)`,
-			body.Name, hash, now,
+			`INSERT INTO api_keys (tenant_id, name, key_hash, created_at, last_used_at, enabled) VALUES (?, ?, ?, ?, 0, 1)`,
+			tenantID, body.Name, hash, now,
 		)
 		if err != nil {
-			log.Printf("[api] create key failed: %v", err)
+			slog.Error("[api] create key failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -97,8 +118,30 @@ func createKey(database *db.DB) http.HandlerFunc {
 func deleteKey(database *db.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
+
+		// Tenant gate: developers may only delete their own tenant's keys.
+		ctxTenant, _ := r.Context().Value(ctxTenantID).(string)
+		ctxRole, _ := r.Context().Value(ctxRole).(string)
+		if ctxTenant != "" && ctxRole != "owner" && ctxRole != "admin" {
+			var keyTenant string
+			err := database.QueryRow(`SELECT tenant_id FROM api_keys WHERE id = ?`, id).Scan(&keyTenant)
+			if err == sql.ErrNoRows {
+				jsonError(w, http.StatusNotFound, "key not found")
+				return
+			}
+			if err != nil {
+				slog.Error("[api] key tenant lookup failed", "err", err)
+				jsonError(w, http.StatusInternalServerError, "internal server error")
+				return
+			}
+			if keyTenant != ctxTenant {
+				jsonError(w, http.StatusForbidden, "cannot delete another tenant's key")
+				return
+			}
+		}
+
 		if _, err := database.Exec(`DELETE FROM api_keys WHERE id = ?`, id); err != nil {
-			log.Printf("[api] delete key failed: %v", err)
+			slog.Error("[api] delete key failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}

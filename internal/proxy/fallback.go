@@ -5,8 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -202,7 +203,7 @@ func (fe *FallbackExecutor) Execute(
 		model := chain[i]
 		p := fe.registry.Route(model)
 		if p == nil {
-			log.Printf("[fallback] no provider for model %q, skipping", model)
+			slog.Info(fmt.Sprintf("[fallback] no provider for model %q, skipping", model))
 			continue
 		}
 
@@ -215,7 +216,7 @@ func (fe *FallbackExecutor) Execute(
 			var err error
 			acc, err = pool.Pick(p.Name())
 			if err != nil {
-				log.Printf("[fallback] no accounts for %s: %v", p.Name(), err)
+				slog.Warn("[fallback] no accounts for provider", "provider", p.Name(), "err", err)
 				lastErr = err
 				continue
 			}
@@ -264,10 +265,10 @@ func (fe *FallbackExecutor) Execute(
 
 			var pe *providers.ProviderError
 			if errors.As(err, &pe) && !pe.Retryable {
-				log.Printf("[fallback] %s non-retryable error: %v", p.Name(), err)
+				slog.Error("[fallback] non-retryable error", "provider", p.Name(), "err", err)
 				return out, err
 			}
-			log.Printf("[fallback] attempt %d/%d failed (%s): %v", i+1, max, p.Name(), err)
+			slog.Warn("[fallback] attempt failed", "attempt", i+1, "max", max, "provider", p.Name(), "err", err)
 			continue
 		}
 

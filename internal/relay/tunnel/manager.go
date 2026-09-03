@@ -3,7 +3,7 @@ package tunnel
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os/exec"
 	"sync"
 )
@@ -41,14 +41,14 @@ func (m *Manager) Start(ctx context.Context) error {
 	}
 
 	m.cmd = cmd
-	log.Printf("[tunnel] started pid=%d url=%s", cmd.Process.Pid, m.tunnelURL)
+	slog.Info(fmt.Sprintf("[tunnel] started pid=%d url=%s", cmd.Process.Pid, m.tunnelURL))
 
 	// Reap the process in the background so it doesn't become a zombie.
 	go func() {
 		if err := cmd.Wait(); err != nil {
-			log.Printf("[tunnel] exited: %v", err)
+			slog.Warn("[tunnel] exited", "err", err)
 		} else {
-			log.Printf("[tunnel] exited cleanly")
+			slog.Info("[tunnel] exited cleanly")
 		}
 		m.mu.Lock()
 		m.cmd = nil
@@ -67,7 +67,7 @@ func (m *Manager) Stop() {
 		return
 	}
 	if err := m.cmd.Process.Kill(); err != nil {
-		log.Printf("[tunnel] kill: %v", err)
+		slog.Warn("[tunnel] kill", "err", err)
 	}
 }
 

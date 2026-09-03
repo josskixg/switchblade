@@ -41,10 +41,10 @@ func TestVerifyPasswordGarbageStored(t *testing.T) {
 	cases := []string{
 		"",
 		"not-a-hash",
-		"$2c$invalidbcrypt",             // bcrypt prefix, malformed body
-		"no-colon-here",                 // legacy parser needs exactly one colon-separated hex hash
-		"salt:not-hex",                  // legacy hash portion must be hex
-		"a:b:c",                         // salt containing a colon misparses -> must not panic/verify
+		"$2c$invalidbcrypt", // bcrypt prefix, malformed body
+		"no-colon-here",     // legacy parser needs exactly one colon-separated hex hash
+		"salt:not-hex",      // legacy hash portion must be hex
+		"a:b:c",             // salt containing a colon misparses -> must not panic/verify
 	}
 	for _, stored := range cases {
 		if VerifyPassword("whatever", stored) {

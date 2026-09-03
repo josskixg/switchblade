@@ -2,7 +2,7 @@ package api
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"switchblade/internal/db"
@@ -30,7 +30,7 @@ func HandleTierQuotaStatus(database *db.DB) http.HandlerFunc {
 				END
 		`)
 		if err != nil {
-			log.Printf("[api] tier quota status failed: %v", err)
+			slog.Error("[api] tier quota status failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -49,7 +49,7 @@ func HandleTierQuotaStatus(database *db.DB) http.HandlerFunc {
 		for rows.Next() {
 			var s tierStats
 			if err := rows.Scan(&s.Tier, &s.TotalAccounts, &s.ActiveAccounts, &s.TotalQuota, &s.RemainingQuota, &s.UsedQuota); err != nil {
-				log.Printf("[api] tier quota status scan failed: %v", err)
+				slog.Error("[api] tier quota status scan failed", "err", err)
 				continue
 			}
 			stats = append(stats, s)
@@ -92,7 +92,7 @@ func HandleServicesStats(database *db.DB) http.HandlerFunc {
 			ORDER BY request_count DESC
 		`)
 		if err != nil {
-			log.Printf("[api] services stats failed: %v", err)
+			slog.Error("[api] services stats failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -110,7 +110,7 @@ func HandleServicesStats(database *db.DB) http.HandlerFunc {
 		for rows.Next() {
 			var s serviceStats
 			if err := rows.Scan(&s.ServiceKind, &s.RequestCount, &s.TotalPromptTokens, &s.TotalCompletionTokens, &s.TotalTokens); err != nil {
-				log.Printf("[api] services stats scan failed: %v", err)
+				slog.Error("[api] services stats scan failed", "err", err)
 				continue
 			}
 			stats = append(stats, s)

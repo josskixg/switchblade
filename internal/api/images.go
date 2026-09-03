@@ -1,7 +1,8 @@
 package api
 
 import (
-	"log"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
@@ -24,7 +25,7 @@ func listImages(database *db.DB) http.HandlerFunc {
 		rows, err := database.Query(
 			`SELECT id, prompt, file_type, local_path, file_size, created_at FROM image_studio_results ORDER BY id DESC LIMIT 500`)
 		if err != nil {
-			log.Printf("[api] list images failed: %v", err)
+			slog.Error("[api] list images failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -54,7 +55,7 @@ func imageStats(database *db.DB) http.HandlerFunc {
 		row := database.QueryRow(`SELECT COUNT(*), COALESCE(SUM(file_size), 0) FROM image_studio_results`)
 		var count, totalSize int64
 		if err := row.Scan(&count, &totalSize); err != nil {
-			log.Printf("[api] image stats failed: %v", err)
+			slog.Error("[api] image stats failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -89,7 +90,7 @@ func serveImage(database *db.DB) http.HandlerFunc {
 		w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write(data); err != nil {
-			log.Printf("[images] write response: %v", err)
+			slog.Warn("[images] write response", "err", err)
 		}
 	}
 }
@@ -104,13 +105,13 @@ func deleteImage(database *db.DB) http.HandlerFunc {
 			return
 		}
 		if _, err := database.Exec(`DELETE FROM image_studio_results WHERE id = ?`, id); err != nil {
-			log.Printf("[api] delete image failed: %v", err)
+			slog.Error("[api] delete image failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
 		if localPath != nil && *localPath != "" {
 			if err := os.Remove(*localPath); err != nil {
-				log.Printf("[images] remove %s: %v", *localPath, err)
+				slog.Info(fmt.Sprintf("[images] remove %s: %v", *localPath, err))
 			}
 		}
 		jsonOK(w, map[string]string{"status": "deleted"})

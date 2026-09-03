@@ -2,7 +2,7 @@ package relay
 
 import (
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 )
 
@@ -42,7 +42,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(rec.code)
 	if _, err := w.Write(rec.body); err != nil {
-		log.Printf("[relay] write response: %v", err)
+		slog.Warn("[relay] write response", "err", err)
 	}
 }
 

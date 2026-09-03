@@ -2,7 +2,7 @@ package api
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -25,7 +25,7 @@ func listModelMappings(database *db.DB) http.HandlerFunc {
 			`SELECT id, source_pattern, match_type, target_model, enabled, priority, label, created_at, updated_at 
 			 FROM model_mappings ORDER BY priority ASC, id DESC`)
 		if err != nil {
-			log.Printf("[api] list model mappings failed: %v", err)
+			slog.Error("[api] list model mappings failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -76,7 +76,7 @@ func createModelMapping(database *db.DB) http.HandlerFunc {
 			body.SourcePattern, body.MatchType, body.TargetModel, body.Priority, body.Label, time.Now().Unix(), time.Now().Unix(),
 		)
 		if err != nil {
-			log.Printf("[api] create model mapping failed: %v", err)
+			slog.Error("[api] create model mapping failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -146,7 +146,7 @@ func updateModelMapping(database *db.DB) http.HandlerFunc {
 			sourcePattern, matchType, targetModel, enabled, priority, label, time.Now().Unix(), id,
 		)
 		if err != nil {
-			log.Printf("[api] update model mapping failed: %v", err)
+			slog.Error("[api] update model mapping failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -158,7 +158,7 @@ func deleteModelMapping(database *db.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
 		if _, err := database.Exec(`DELETE FROM model_mappings WHERE id = ?`, id); err != nil {
-			log.Printf("[api] delete model mapping failed: %v", err)
+			slog.Error("[api] delete model mapping failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}

@@ -2,7 +2,8 @@ package api
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
@@ -22,7 +23,7 @@ func StartImageCleanup(ctx context.Context, database *db.DB, storageDir string, 
 		for {
 			select {
 			case <-ctx.Done():
-				log.Printf("[image/cleanup] stopped")
+				slog.Info("[image/cleanup] stopped")
 				return
 			case <-t.C:
 				runImageCleanup(database, retentionDays)
@@ -36,7 +37,7 @@ func runImageCleanup(database *db.DB, retentionDays int) {
 	rows, err := database.Query(
 		`SELECT id, local_path FROM image_studio_results WHERE created_at < ?`, cutoff)
 	if err != nil {
-		log.Printf("[image/cleanup] query error: %v", err)
+		slog.Error("[image/cleanup] query error", "err", err)
 		return
 	}
 	defer rows.Close()
@@ -60,15 +61,15 @@ func runImageCleanup(database *db.DB, retentionDays int) {
 	for i, id := range ids {
 		if i < len(paths) && paths[i] != "" {
 			if err := os.Remove(paths[i]); err != nil {
-				log.Printf("[cleanup] remove %s: %v", paths[i], err)
+				slog.Info(fmt.Sprintf("[cleanup] remove %s: %v", paths[i], err))
 			}
 		}
 		if _, err := database.Exec(`DELETE FROM image_studio_results WHERE id = ?`, id); err != nil {
-			log.Printf("[cleanup] db delete: %v", err)
+			slog.Warn("[cleanup] db delete", "err", err)
 		}
 		cleaned++
 	}
 	if cleaned > 0 {
-		log.Printf("[image/cleanup] removed %d image(s) older than %d days", cleaned, retentionDays)
+		slog.Info(fmt.Sprintf("[image/cleanup] removed %d image(s) older than %d days", cleaned, retentionDays))
 	}
 }

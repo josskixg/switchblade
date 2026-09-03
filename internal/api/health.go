@@ -3,7 +3,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -25,7 +25,7 @@ func HandleReadiness(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if err := db.Ping(); err != nil {
-			log.Printf("[api] health readiness check failed: %v", err)
+			slog.Error("[api] health readiness check failed", "err", err)
 			w.WriteHeader(http.StatusServiceUnavailable)
 			json.NewEncoder(w).Encode(map[string]any{
 				"status": "not_ready",

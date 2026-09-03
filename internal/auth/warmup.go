@@ -2,7 +2,8 @@ package auth
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -38,7 +39,7 @@ func (w *WarmupQueue) RunOnce(ctx context.Context) {
 		  WHERE enabled = 1 AND status = 'active'`,
 	)
 	if err != nil {
-		log.Printf("[auth/warmup] query error: %v", err)
+		slog.Error("[auth/warmup] query error", "err", err)
 		return
 	}
 	defer rows.Close()
@@ -52,16 +53,16 @@ func (w *WarmupQueue) RunOnce(ctx context.Context) {
 			&a.LastUsedAt, &a.LastLoginAt, &a.ErrorMessage, &a.Metadata,
 			&a.CreatedAt, &a.UpdatedAt,
 		); err != nil {
-			log.Printf("[auth/warmup] scan error: %v", err)
+			slog.Error("[auth/warmup] scan error", "err", err)
 			continue
 		}
 		accs = append(accs, a)
 	}
 	if err := rows.Err(); err != nil {
-		log.Printf("[auth/warmup] rows error: %v", err)
+		slog.Error("[auth/warmup] rows error", "err", err)
 	}
 
-	log.Printf("[auth/warmup] checking %d active accounts", len(accs))
+	slog.Info(fmt.Sprintf("[auth/warmup] checking %d active accounts", len(accs)))
 
 	// ponytail: semaphore via buffered chan, no extra sync primitive needed
 	sem := make(chan struct{}, w.concurrency)
@@ -90,7 +91,7 @@ func (w *WarmupQueue) check(ctx context.Context, acc *providers.Account) {
 		}
 	}
 	if p == nil {
-		log.Printf("[auth/warmup] no provider registered for %q (account %d)", acc.Provider, acc.ID)
+		slog.Info(fmt.Sprintf("[auth/warmup] no provider registered for %q (account %d)", acc.Provider, acc.ID))
 		return
 	}
 
@@ -98,16 +99,16 @@ func (w *WarmupQueue) check(ctx context.Context, acc *providers.Account) {
 	defer cancel()
 
 	if p.Healthy(checkCtx, acc) {
-		log.Printf("[auth/warmup] account %d (%s) healthy", acc.ID, acc.Email)
+		slog.Info("[auth/warmup] account healthy", "account_id", acc.ID, "email", acc.Email)
 		return
 	}
 
-	log.Printf("[auth/warmup] account %d (%s) unhealthy, marking error", acc.ID, acc.Email)
+	slog.Error("[auth/warmup] account unhealthy, marking error", "account_id", acc.ID, "email", acc.Email)
 	_, err := w.db.ExecContext(ctx,
 		`UPDATE accounts SET status = 'error', updated_at = ? WHERE id = ?`,
 		time.Now().Unix(), acc.ID,
 	)
 	if err != nil {
-		log.Printf("[auth/warmup] failed to update account %d: %v", acc.ID, err)
+		slog.Error("[auth/warmup] update account failed", "account_id", acc.ID, "err", err)
 	}
 }

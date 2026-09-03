@@ -6,6 +6,7 @@
 
 **The ultra-fast, high-efficiency AI API Proxy Pool.**
 
+[![CI](https://github.com/josski45/switchblade/actions/workflows/ci.yml/badge.svg)](https://github.com/josski45/switchblade/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-blueviolet?style=flat-square)](LICENSE)
 [![SQLite](https://img.shields.io/badge/SQLite-Pure%20Go-003B57?style=flat-square&logo=sqlite&logoColor=white)](https://modernc.org/sqlite)
@@ -315,7 +316,7 @@ Full spec: [`docs/openapi.yaml`](docs/openapi.yaml).
 
 ## ⚙️ Configuration
 
-All configuration is via environment variables. Copy `.env.example` and edit — it documents all 42 variables.
+All configuration is via environment variables. Copy `.env.example` and edit — it documents all 43 variables.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -332,6 +333,7 @@ All configuration is via environment variables. Copy `.env.example` and edit —
 | `CACHE_DEFAULT_TTL_SEC` | `300` | Cache TTL in seconds |
 | `RATE_LIMIT_ENABLED` | `true` | Enable per-client rate limiting |
 | `RATE_LIMIT_DEFAULT` | `100` | Requests per minute per API key |
+| `LOG_LEVEL` | `info` | Log verbosity: `debug \| info \| warn \| error` |
 | `LOG_RETENTION_DAYS` | `30` | Auto-prune request logs after N days |
 | `BACKUP_INTERVAL_MINUTES` | `60` | SQLite auto-backup interval |
 | `IMAGE_RETENTION_DAYS` | `0` | Image storage retention (0 = forever) |
@@ -362,6 +364,7 @@ All configuration is via environment variables. Copy `.env.example` and edit —
 - Account credentials encrypted at rest with **AES-256-GCM** using `ENCRYPTION_KEY`
 - Auth via `Authorization: Bearer <key>` or `x-api-key` header
 - **SSRF guard** — outbound URLs fetched by management features are validated against private/internal ranges (`internal/ssrf`)
+- Structured logging via `log/slog` (text on stderr), level controlled by `LOG_LEVEL`
 - CORS configured via `CORS_ORIGIN` env var
 - See [SECURITY.md](SECURITY.md) for reporting vulnerabilities
 

@@ -2,7 +2,8 @@ package billing
 
 import (
 	"database/sql"
-	"log"
+	"fmt"
+	"log/slog"
 	"time"
 )
 
@@ -56,7 +57,7 @@ func (m *Meter) Admit(tenantID string) Verdict {
 		// Fail open on infrastructure trouble: dropping paid traffic because the
 		// billing DB hiccuped costs more than the odd unbilled request. The error
 		// is logged so it cannot pass unnoticed.
-		log.Printf("[billing] admit %s: %v", tenantID, err)
+		slog.Info(fmt.Sprintf("[billing] admit %s: %v", tenantID, err))
 		return Verdict{Allow: true, Code: "unmetered", Reason: "billing lookup failed"}
 	}
 

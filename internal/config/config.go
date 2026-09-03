@@ -91,8 +91,8 @@ type Config struct {
 // Load reads env vars, applies defaults, sets the global C, and returns it.
 func Load() *Config {
 	c := &Config{
-		Port:                     envInt("PORT", 2005),
-		DashboardPort:            envInt("DASHBOARD_PORT", 2006),
+		Port:                     envInt("PORT", 1930),
+		DashboardPort:            envInt("DASHBOARD_PORT", 1931),
 		APIKey:                   envStr("API_KEY", "switchblade-secret"),
 		EncryptionKey:            envStr("ENCRYPTION_KEY", ""),
 		DatabasePath:             envStr("DATABASE_PATH", "data/switchblade.db"),

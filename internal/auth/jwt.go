@@ -59,6 +59,16 @@ func VerifyJWT(token string, secret []byte) (*JWTClaims, error) {
 		return nil, ErrInvalidToken
 	}
 
+	// Reject unexpected algs (alg confusion / "none").
+	hdrBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return nil, ErrInvalidToken
+	}
+	var hdr jwtHeader
+	if err := json.Unmarshal(hdrBytes, &hdr); err != nil || hdr.Alg != "HS256" {
+		return nil, ErrInvalidToken
+	}
+
 	signingInput := parts[0] + "." + parts[1]
 	expectedSig := hmacSHA256([]byte(signingInput), secret)
 	actualSig, err := base64.RawURLEncoding.DecodeString(parts[2])
@@ -79,8 +89,11 @@ func VerifyJWT(token string, secret []byte) (*JWTClaims, error) {
 		return nil, ErrInvalidToken
 	}
 
-	if claims.ExpiresAt < time.Now().Unix() {
+	if claims.ExpiresAt == 0 || claims.ExpiresAt < time.Now().Unix() {
 		return nil, ErrExpiredToken
+	}
+	if claims.UserID == "" || claims.TenantID == "" {
+		return nil, ErrInvalidToken
 	}
 
 	return &claims, nil

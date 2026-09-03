@@ -6,7 +6,8 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
-	"log"
+	"fmt"
+	"log/slog"
 	"mime"
 	"net/http"
 	"os"
@@ -84,7 +85,7 @@ func tryAuthKeyV2(db *sql.DB, next http.Handler, w http.ResponseWriter, r *http.
 		// would offer the request to the legacy comparison, and a match there admits
 		// it with no tenant, no scopes and no quota — so a database outage would
 		// quietly widen every caller's privileges. Report the outage instead.
-		log.Printf("[auth] v2 key lookup failed: %v", err)
+		slog.Error("[auth] v2 key lookup failed", "err", err)
 		jsonError(w, http.StatusServiceUnavailable, "authentication temporarily unavailable")
 		return true
 	}
@@ -101,7 +102,7 @@ func tryAuthKeyV2(db *sql.DB, next http.Handler, w http.ResponseWriter, r *http.
 	var tenantStatus string
 	terr := db.QueryRow("SELECT status FROM tenants WHERE id = ?", tenantID).Scan(&tenantStatus)
 	if terr != nil && terr != sql.ErrNoRows {
-		log.Printf("[auth] tenant status lookup failed: %v", terr)
+		slog.Error("[auth] tenant status lookup failed", "err", terr)
 		jsonError(w, http.StatusServiceUnavailable, "authentication temporarily unavailable")
 		return true
 	}
@@ -118,7 +119,7 @@ func tryAuthKeyV2(db *sql.DB, next http.Handler, w http.ResponseWriter, r *http.
 	if err != nil {
 		// Unknown scopes are not the same as unrestricted scopes: continuing here
 		// would grant the key every model it was explicitly fenced off from.
-		log.Printf("[auth] failed to load scopes: %v", err)
+		slog.Error("[auth] failed to load scopes", "err", err)
 		jsonError(w, http.StatusServiceUnavailable, "authentication temporarily unavailable")
 		return true
 	}
@@ -139,7 +140,7 @@ func tryAuthKeyV2(db *sql.DB, next http.Handler, w http.ResponseWriter, r *http.
 	// Check quota
 	withinQuota, qerr := CheckQuota(db, tenantID)
 	if qerr != nil {
-		log.Printf("[auth] quota check failed: %v", qerr)
+		slog.Error("[auth] quota check failed", "err", qerr)
 		// Don't block on quota DB error — let request through
 	} else if !withinQuota {
 		jsonError(w, http.StatusTooManyRequests, "Daily/Monthly token quota exceeded")
@@ -292,7 +293,7 @@ func RequestLogger(next http.Handler) http.Handler {
 		ww := &statusWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(ww, r)
 
-		log.Printf("%s %s %d %s", r.Method, r.URL.Path, ww.status, time.Since(start).Round(time.Microsecond))
+		slog.Info(fmt.Sprintf("%s %s %d %s", r.Method, r.URL.Path, ww.status, time.Since(start).Round(time.Microsecond)))
 	})
 }
 

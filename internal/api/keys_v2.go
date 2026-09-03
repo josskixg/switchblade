@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"switchblade/internal/reqctx"
 )
 
@@ -193,7 +195,9 @@ func AuthKeyV2(db *sql.DB) func(http.Handler) http.Handler {
 }
 
 // HandleCreateKeyV2 handles POST /api/keys/v2
-// Request: {name, tenant_id, scopes: ["gpt-*", "claude-*"], expires_at?}
+// Request: {name, tenant_id?, scopes: ["gpt-*", "claude-*"], expires_at?}
+// tenant_id defaults to the caller's own tenant; only owners/admins may mint
+// keys for another tenant (root/admin operators mint for any tenant).
 // Response: {key_id, key_value, scopes}
 func HandleCreateKeyV2(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -213,14 +217,31 @@ func HandleCreateKeyV2(db *sql.DB) http.HandlerFunc {
 			jsonError(w, http.StatusBadRequest, "invalid JSON")
 			return
 		}
-		if req.TenantID == "" || req.Name == "" {
-			jsonError(w, http.StatusBadRequest, "tenant_id and name are required")
+		if req.Name == "" {
+			jsonError(w, http.StatusBadRequest, "name is required")
+			return
+		}
+
+		// Tenant gate: default to the caller's tenant. Cross-tenant minting is
+		// owner-only; a key scoping a tenant's quota and models is privilege.
+		ctxTenant, _ := r.Context().Value(reqctx.TenantID).(string)
+		ctxRole, _ := r.Context().Value(reqctx.Role).(string)
+		targetTenant := req.TenantID
+		if targetTenant == "" {
+			targetTenant = ctxTenant
+		}
+		if targetTenant != ctxTenant && ctxRole != "owner" && ctxRole != "admin" {
+			jsonError(w, http.StatusForbidden, "only owners and admins can create keys for another tenant")
+			return
+		}
+		if targetTenant == "" {
+			jsonError(w, http.StatusBadRequest, "tenant_id is required")
 			return
 		}
 
 		// Verify tenant exists and is active
 		var tenantStatus string
-		err := db.QueryRow("SELECT status FROM tenants WHERE id = ?", req.TenantID).Scan(&tenantStatus)
+		err := db.QueryRow("SELECT status FROM tenants WHERE id = ?", targetTenant).Scan(&tenantStatus)
 		if err == sql.ErrNoRows {
 			jsonError(w, http.StatusNotFound, "tenant not found")
 			return
@@ -243,7 +264,7 @@ func HandleCreateKeyV2(db *sql.DB) http.HandlerFunc {
 		var keyID int64
 		_, err = tx.Exec(
 			"INSERT INTO api_keys (tenant_id, key_hash, name, created_at, enabled) VALUES (?, ?, ?, ?, 1)",
-			req.TenantID, keyHash, req.Name, now,
+			targetTenant, keyHash, req.Name, now,
 		)
 		if err != nil {
 			jsonError(w, http.StatusInternalServerError, "failed to create key")
@@ -278,7 +299,7 @@ func HandleCreateKeyV2(db *sql.DB) http.HandlerFunc {
 			"key_id":     keyID,
 			"key_value":  keyValue,
 			"scopes":     req.Scopes,
-			"tenant_id":  req.TenantID,
+			"tenant_id":  targetTenant,
 			"name":       req.Name,
 			"role":       "developer",
 			"expires_at": req.ExpiresAt,
@@ -286,10 +307,22 @@ func HandleCreateKeyV2(db *sql.DB) http.HandlerFunc {
 	}
 }
 
-// HandleListKeysV2 handles GET /api/keys/v2?tenant_id=xxx
+// HandleListKeysV2 handles GET /api/keys/v2
+// Lists keys of the caller's tenant; ?tenant_id= is honored only for
+// owners/admins, so a developer cannot enumerate another tenant's keys.
 func HandleListKeysV2(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctxTenant, _ := r.Context().Value(reqctx.TenantID).(string)
+		ctxRole, _ := r.Context().Value(reqctx.Role).(string)
+
 		tenantID := r.URL.Query().Get("tenant_id")
+		if tenantID == "" {
+			tenantID = ctxTenant
+		}
+		if tenantID != ctxTenant && ctxRole != "owner" && ctxRole != "admin" {
+			jsonError(w, http.StatusForbidden, "owner or admin access required")
+			return
+		}
 		if tenantID == "" {
 			jsonError(w, http.StatusBadRequest, "tenant_id is required")
 			return
@@ -362,10 +395,31 @@ func HandleDeleteKeyV2(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		id := r.PathValue("id")
+		// chi routes, not net/http pattern routes — r.PathValue is always empty here.
+		id := chi.URLParam(r, "id")
 		if id == "" {
 			jsonError(w, http.StatusBadRequest, "key ID is required")
 			return
+		}
+
+		// Tenant gate: developers may only delete their own tenant's keys.
+		ctxTenant, _ := r.Context().Value(reqctx.TenantID).(string)
+		ctxRole, _ := r.Context().Value(reqctx.Role).(string)
+		if ctxTenant != "" && ctxRole != "owner" && ctxRole != "admin" {
+			var keyTenant string
+			err := db.QueryRow("SELECT tenant_id FROM api_keys WHERE id = ?", id).Scan(&keyTenant)
+			if err == sql.ErrNoRows {
+				jsonError(w, http.StatusNotFound, "key not found")
+				return
+			}
+			if err != nil {
+				jsonError(w, http.StatusInternalServerError, "database error")
+				return
+			}
+			if keyTenant != ctxTenant {
+				jsonError(w, http.StatusForbidden, "cannot delete another tenant's key")
+				return
+			}
 		}
 
 		tx, err := db.Begin()
@@ -433,6 +487,15 @@ func HandleGetKeyByValue(db *sql.DB) http.HandlerFunc {
 		}
 		if err != nil {
 			jsonError(w, http.StatusInternalServerError, "database error")
+			return
+		}
+
+		// Cross-tenant metadata leak: a developer JWT must not be able to probe
+		// arbitrary key values and learn which tenant/status/scopes they carry.
+		ctxTenant, _ := r.Context().Value(reqctx.TenantID).(string)
+		ctxRole, _ := r.Context().Value(reqctx.Role).(string)
+		if ctxTenant != "" && tenantID != ctxTenant && ctxRole != "owner" && ctxRole != "admin" {
+			jsonError(w, http.StatusNotFound, "key not found")
 			return
 		}
 

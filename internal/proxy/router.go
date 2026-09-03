@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"switchblade/internal/billing"
@@ -129,7 +129,7 @@ func (r *Router) ServeChat(w http.ResponseWriter, req *http.Request) {
 	// Stage 3: Token compression — 6-stage pipeline (non-fatal).
 	body, compStats := compression.Compress(body)
 	if compStats.Total > 0 {
-		log.Printf("[chat] compression saved %d bytes for model %q", compStats.Total, model)
+		slog.Info(fmt.Sprintf("[chat] compression saved %d bytes for model %q", compStats.Total, model))
 	}
 
 	// Parse stream flag.

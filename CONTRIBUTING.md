@@ -42,7 +42,7 @@ Be respectful, be constructive, be collaborative. We're all here to build someth
 
 ### Prerequisites
 
-- **Go 1.21+** — [install](https://golang.org/dl/)
+- **Go 1.25+** — [install](https://golang.org/dl/) (see `go.mod`)
 - **Python 3.10+** — only needed if working on browser auth bots (`scripts/auth/`)
 - **make** — for convenience commands
 

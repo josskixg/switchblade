@@ -24,7 +24,7 @@ func TestIsInternalIP(t *testing.T) {
 		// Public — must not be flagged
 		{"8.8.8.8", false},
 		{"1.1.1.1", false},
-		{"172.32.0.1", false}, // just outside 172.16/12
+		{"172.32.0.1", false},  // just outside 172.16/12
 		{"192.169.0.1", false}, // just outside 192.168/16
 		// Not an IP at all — hostname, resolved later by ValidateURL
 		{"example.com", false},

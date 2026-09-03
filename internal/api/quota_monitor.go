@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -49,7 +49,7 @@ func (qm *QuotaMonitor) runLoop() {
 func (qm *QuotaMonitor) checkQuotas() {
 	tenants, err := qm.fetchActiveTenants()
 	if err != nil {
-		log.Printf("[quota-monitor] error fetching tenants: %v", err)
+		slog.Error("[quota-monitor] error fetching tenants", "err", err)
 		return
 	}
 
@@ -57,7 +57,7 @@ func (qm *QuotaMonitor) checkQuotas() {
 	for _, t := range tenants {
 		usage, err := qm.getDailyUsage(t.id, todayStart)
 		if err != nil {
-			log.Printf("[quota-monitor] error fetching usage for tenant %s: %v", t.id, err)
+			slog.Error("[quota-monitor] fetch usage failed", "tenant", t.id, "err", err)
 			continue
 		}
 
@@ -135,7 +135,7 @@ func (qm *QuotaMonitor) blockTenant(tenantID, reason string) {
 		tenantID,
 	)
 	if err != nil {
-		log.Printf("[quota-monitor] error blocking tenant %s: %v", tenantID, err)
+		slog.Error("[quota-monitor] block tenant failed", "tenant", tenantID, "err", err)
 		return
 	}
 
@@ -143,7 +143,7 @@ func (qm *QuotaMonitor) blockTenant(tenantID, reason string) {
 	qm.blockedTenants[tenantID] = reason
 	qm.mu.Unlock()
 
-	log.Printf("[quota-monitor] BLOCKED tenant %s — reason: %s", tenantID, reason)
+	slog.Info(fmt.Sprintf("[quota-monitor] BLOCKED tenant %s — reason: %s", tenantID, reason))
 }
 
 // unblockIfSafe unblocks a tenant that was auto-blocked and is now within daily limits.
@@ -161,7 +161,7 @@ func (qm *QuotaMonitor) unblockIfSafe(tenantID string) {
 		tenantID,
 	)
 	if err != nil {
-		log.Printf("[quota-monitor] error unblocking tenant %s: %v", tenantID, err)
+		slog.Error("[quota-monitor] unblock tenant failed", "tenant", tenantID, "err", err)
 		return
 	}
 
@@ -169,7 +169,7 @@ func (qm *QuotaMonitor) unblockIfSafe(tenantID string) {
 	delete(qm.blockedTenants, tenantID)
 	qm.mu.Unlock()
 
-	log.Printf("[quota-monitor] UNBLOCKED tenant %s — previous reason: %s", tenantID, reason)
+	slog.Info(fmt.Sprintf("[quota-monitor] UNBLOCKED tenant %s — previous reason: %s", tenantID, reason))
 }
 
 // IsBlocked returns true if the tenant is currently blocked.
@@ -187,7 +187,7 @@ func (qm *QuotaMonitor) Unblock(tenantID string) {
 		tenantID,
 	)
 	if err != nil {
-		log.Printf("[quota-monitor] error manually unblocking tenant %s: %v", tenantID, err)
+		slog.Error("[quota-monitor] manual unblock failed", "tenant", tenantID, "err", err)
 		return
 	}
 
@@ -195,7 +195,7 @@ func (qm *QuotaMonitor) Unblock(tenantID string) {
 	delete(qm.blockedTenants, tenantID)
 	qm.mu.Unlock()
 
-	log.Printf("[quota-monitor] manually UNBLOCKED tenant %s", tenantID)
+	slog.Info(fmt.Sprintf("[quota-monitor] manually UNBLOCKED tenant %s", tenantID))
 }
 
 // BlockedTenants returns a sorted list of blocked tenant IDs.

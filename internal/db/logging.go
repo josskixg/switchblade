@@ -3,7 +3,7 @@ package db
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"time"
 )
 
@@ -51,7 +51,7 @@ func (db *DB) LogRequest(entry RequestLog) {
 			time.Now().Unix(),
 		)
 		if err != nil {
-			log.Printf("[db] LogRequest: %v", err)
+			slog.Warn("[db] LogRequest", "err", err)
 		}
 	}()
 }
@@ -72,7 +72,7 @@ func (db *DB) UpsertUsageSummary(provider, model string, promptTok, completionTo
 			bucket, provider, model, promptTok, completionTok, totalTok, credits,
 		)
 		if err != nil {
-			log.Printf("[db] UpsertUsageSummary: %v", err)
+			slog.Warn("[db] UpsertUsageSummary", "err", err)
 		}
 	}()
 }

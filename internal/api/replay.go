@@ -2,7 +2,7 @@ package api
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -24,7 +24,7 @@ func listReplay(database *db.DB) http.HandlerFunc {
 		rows, err := database.Query(
 			`SELECT id, provider, model, replay_status, created_at FROM request_logs WHERE replay_status IS NOT NULL ORDER BY id DESC LIMIT 500`)
 		if err != nil {
-			log.Printf("[api] list replay failed: %v", err)
+			slog.Error("[api] list replay failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -67,7 +67,7 @@ func enqueueReplay(database *db.DB) http.HandlerFunc {
 			body.Provider, body.Model, now,
 		)
 		if err != nil {
-			log.Printf("[api] enqueue replay failed: %v", err)
+			slog.Error("[api] enqueue replay failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -81,7 +81,7 @@ func deleteReplay(database *db.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
 		if _, err := database.Exec(`UPDATE request_logs SET replay_status = NULL WHERE id = ?`, id); err != nil {
-			log.Printf("[api] delete replay failed: %v", err)
+			slog.Error("[api] delete replay failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -94,7 +94,7 @@ func replayStats(database *db.DB) http.HandlerFunc {
 		rows, err := database.Query(
 			`SELECT replay_status, COUNT(*) FROM request_logs WHERE replay_status IS NOT NULL GROUP BY replay_status`)
 		if err != nil {
-			log.Printf("[api] replay stats failed: %v", err)
+			slog.Error("[api] replay stats failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}

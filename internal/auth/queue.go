@@ -4,7 +4,7 @@ package auth
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os/exec"
 	"strings"
 	"time"
@@ -48,12 +48,12 @@ func (q *LoginQueue) SetPythonPath(path string) {
 	q.pythonPath = path
 }
 
-// Enqueue adds a job non-blocking; drops silently if the buffer is full.
+// Enqueue adds a job non-blocking; drops with a warning if the buffer is full.
 func (q *LoginQueue) Enqueue(job LoginJob) {
 	select {
 	case q.jobs <- job:
 	default:
-		log.Printf("[auth/queue] buffer full, dropping job for account %d (%s)", job.AccountID, job.Email)
+		slog.Warn("[auth/queue] buffer full, dropping job", "account_id", job.AccountID, "email", job.Email)
 	}
 }
 
@@ -85,7 +85,7 @@ func (q *LoginQueue) work() {
 
 func (q *LoginQueue) run(job LoginJob) {
 	script := fmt.Sprintf("scripts/%s_login.py", job.Provider)
-	log.Printf("[auth/queue] running %s for account %d (%s)", script, job.AccountID, job.Email)
+	slog.Debug("[auth/queue] running login script", "script", script, "account_id", job.AccountID, "email", job.Email)
 
 	ctx, cancel := context.WithTimeout(q.ctx, 120*time.Second)
 	defer cancel()
@@ -102,7 +102,7 @@ func (q *LoginQueue) run(job LoginJob) {
 		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
 			msg = strings.TrimSpace(string(ee.Stderr))
 		}
-		log.Printf("[auth/queue] account %d login failed: %s", job.AccountID, msg)
+		slog.Error("[auth/queue] login failed", "account_id", job.AccountID, "err", msg)
 		if q.OnError != nil {
 			q.OnError(job.AccountID, msg)
 		}
@@ -110,7 +110,7 @@ func (q *LoginQueue) run(job LoginJob) {
 	}
 
 	tokens := strings.TrimSpace(string(out))
-	log.Printf("[auth/queue] account %d login succeeded", job.AccountID)
+	slog.Info(fmt.Sprintf("[auth/queue] account %d login succeeded", job.AccountID))
 	if q.OnSuccess != nil {
 		q.OnSuccess(job.AccountID, tokens)
 	}

@@ -3,7 +3,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -89,7 +89,7 @@ func (m *MITMAPI) handleSessions(w http.ResponseWriter, r *http.Request) {
 		var id, accountID, statusCode, bytesSent, createdAt sql.NullInt64
 		var ide, provider, method, path string
 		if err := rows.Scan(&id, &ide, &provider, &accountID, &method, &path, &statusCode, &bytesSent, &createdAt); err != nil {
-			log.Printf("[mitm/api] scan session: %v", err)
+			slog.Warn("[mitm/api] scan session", "err", err)
 			continue
 		}
 		sessions = append(sessions, map[string]any{

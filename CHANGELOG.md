@@ -6,6 +6,46 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **SSRF guard rejected all public IPv4 targets** — the `::ffff:0:0/96` entry in
+  `internal/ssrf` reduced to an all-zero effective mask under
+  `net.IPNet.Contains`, matching every IPv4 address. Removed; private IPv6
+  ranges (`fc00::/7`, `fe80::/10`) added in its place.
+- **SQLite DSN pragmas were silently dead** — `internal/db` used
+  mattn/go-sqlite3 DSN syntax (`_foreign_keys=on`, `_journal_mode=WAL`) with
+  the `modernc.org/sqlite` driver, which only understands `_pragma=`. WAL,
+  busy_timeout, and foreign key enforcement had never been active. DSN
+  rewritten to `_pragma=` form; foreign keys now actually enforced.
+- **`_system` default tenant was never seeded** — many tables default to
+  `tenant_id='_system'` but no such row existed, so inserts failed once
+  foreign keys were enabled. Schema now seeds it idempotently.
+- Removed broken `cmd/cli` deprecated stub package.
+
+### Added
+
+- Test suites for `internal/ssrf`, `internal/auth` (JWT + password), and
+  `internal/db` (migrations, FK enforcement, tenant scoping).
+- Browser-auth login-script contract documented in `scripts/auth/README.md`
+  (scripts remain unbundled by design).
+- `LOG_LEVEL` environment variable (`debug|info|warn|error`, default `info`).
+
+### Changed
+
+- **Migrated logging from stdlib `log` to `log/slog`** across 42 files
+  (~200 call sites): structured key/value attributes, leveled output (text
+  handler on stderr), `log.Fatal` replaced by `slog.Error` + `os.Exit(1)`.
+- README rewritten for accuracy: AES-256-GCM credential encryption (not
+  XOR+base64), 90+ providers, 33-table schema, `web/` dashboard layout,
+  multi-tenancy/billing/tiers/MITM documented, provider count aligned with
+  `docs/openapi.yaml`.
+- `PLAN.md` marked as historical; `docs/openapi.yaml` provider count
+  corrected.
+
+---
+
 ## [1.0.0] — 2026-06-27
 
 ### Major Release — Multi-Tenant SaaS Platform

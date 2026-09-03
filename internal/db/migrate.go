@@ -4,7 +4,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 )
 
 // Migration represents a single schema migration. SQL runs first, then Fn.
@@ -212,7 +212,7 @@ func ApplyVersionedMigrations(database *sql.DB) error {
 			continue
 		}
 
-		log.Printf("[DB] applying migration v%d: %s", m.Version, m.Name)
+		slog.Info(fmt.Sprintf("[DB] applying migration v%d: %s", m.Version, m.Name))
 		if m.SQL != "" {
 			if _, err := database.Exec(m.SQL); err != nil {
 				return fmt.Errorf("migration v%d (%s): %w", m.Version, m.Name, err)
@@ -228,14 +228,14 @@ func ApplyVersionedMigrations(database *sql.DB) error {
 			return fmt.Errorf("record migration v%d: %w", m.Version, err)
 		}
 
-		log.Printf("[DB] migration v%d applied successfully", m.Version)
+		slog.Info(fmt.Sprintf("[DB] migration v%d applied successfully", m.Version))
 	}
 
 	if current == 0 && len(migrations) == 0 {
-		log.Println("[DB] no migrations to apply")
+		slog.Info("[DB] no migrations to apply")
 	} else {
 		latest, _ := GetCurrentVersion(database)
-		log.Printf("[DB] schema up-to-date at version %d", latest)
+		slog.Info(fmt.Sprintf("[DB] schema up-to-date at version %d", latest))
 	}
 
 	return nil

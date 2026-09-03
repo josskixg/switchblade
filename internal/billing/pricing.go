@@ -2,7 +2,7 @@ package billing
 
 import (
 	"database/sql"
-	"log"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -92,7 +92,7 @@ func (c *PricingCache) maybeReload() {
 		SELECT model, input_nano_per_mtok, output_nano_per_mtok, margin_bps
 		FROM model_pricing WHERE enabled = 1`)
 	if err != nil {
-		log.Printf("[billing] pricing reload: %v", err)
+		slog.Warn("[billing] pricing reload", "err", err)
 		// Keep serving the previous rate card; back off so a broken DB does not
 		// turn into a query storm.
 		c.mu.Lock()

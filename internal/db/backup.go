@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -99,13 +99,13 @@ func StartAutoBackup(ctx context.Context, dbPath, dir string, intervalMinutes, r
 		for {
 			select {
 			case <-ctx.Done():
-				log.Printf("[backup] auto backup stopped")
+				slog.Info("[backup] auto backup stopped")
 				return
 			case <-ticker.C:
 				if path, err := Backup(dbPath, dir, retention); err != nil {
-					log.Printf("[backup] error: %v", err)
+					slog.Error("[backup] error", "err", err)
 				} else {
-					log.Printf("[backup] wrote %s", path)
+					slog.Info(fmt.Sprintf("[backup] wrote %s", path))
 				}
 			}
 		}
@@ -124,7 +124,7 @@ func (db *DB) PruneRequestLogs(retentionDays int) error {
 	}
 	n, _ := res.RowsAffected()
 	if n > 0 {
-		log.Printf("[db] pruned %d request_logs older than %d days", n, retentionDays)
+		slog.Info(fmt.Sprintf("[db] pruned %d request_logs older than %d days", n, retentionDays))
 	}
 	return nil
 }
@@ -142,7 +142,7 @@ func (db *DB) PruneUsageSummary(retentionDays int) error {
 	}
 	n, _ := res.RowsAffected()
 	if n > 0 {
-		log.Printf("[db] pruned %d usage_summary rows older than %d days", n, retentionDays)
+		slog.Info(fmt.Sprintf("[db] pruned %d usage_summary rows older than %d days", n, retentionDays))
 	}
 	return nil
 }
@@ -162,7 +162,7 @@ func pruneBackups(dir string, keep int) {
 	sort.Strings(files) // lexicographic = chronological (timestamp in name)
 	for len(files) > keep {
 		if err := os.Remove(files[0]); err != nil {
-			log.Printf("[backup] prune remove %s: %v", files[0], err)
+			slog.Info(fmt.Sprintf("[backup] prune remove %s: %v", files[0], err))
 		}
 		files = files[1:]
 	}

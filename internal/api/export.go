@@ -2,11 +2,13 @@ package api
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"switchblade/internal/config"
+	"switchblade/internal/crypto"
 	"switchblade/internal/db"
 )
 
@@ -25,7 +27,7 @@ func exportAccounts(database *db.DB) http.HandlerFunc {
 			 FROM accounts ORDER BY id`,
 		)
 		if err != nil {
-			log.Printf("[api] export accounts failed: %v", err)
+			slog.Error("[api] export accounts failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -49,7 +51,7 @@ func exportAccounts(database *db.DB) http.HandlerFunc {
 			var enabled int
 			if err := rows.Scan(&a.ID, &a.Provider, &a.Email, &a.Status, &enabled,
 				&a.QuotaLimit, &a.QuotaRemaining, &a.LastUsedAt, &a.CreatedAt, &a.Metadata); err != nil {
-				log.Printf("[api] export accounts scan failed: %v", err)
+				slog.Error("[api] export accounts scan failed", "err", err)
 				jsonError(w, http.StatusInternalServerError, "internal server error")
 				return
 			}
@@ -76,7 +78,7 @@ func exportLogs(database *db.DB) http.HandlerFunc {
 
 		rows, err := database.Query(query, args...)
 		if err != nil {
-			log.Printf("[api] export logs failed: %v", err)
+			slog.Error("[api] export logs failed", "err", err)
 			jsonError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -90,7 +92,7 @@ func exportLogs(database *db.DB) http.HandlerFunc {
 			var provider, status string
 			var model, errMsg *string
 			if err := rows.Scan(&id, &provider, &model, &status, &durationMs, &totalTokens, &creditsUsed, &createdAt, &errMsg); err != nil {
-				log.Printf("[api] export logs scan failed: %v", err)
+				slog.Error("[api] export logs scan failed", "err", err)
 				jsonError(w, http.StatusInternalServerError, "internal server error")
 				return
 			}
@@ -145,6 +147,13 @@ func importAccounts(database *db.DB) http.HandlerFunc {
 			if status == "" {
 				status = "pending"
 			}
+			// pre-encrypted or plain: keep if decryptable, else encrypt (ponytail: avoid double-encrypt)
+			pw := a.Password
+			if pw != "" && config.C != nil && config.C.EncryptionKey != "" {
+				if crypto.Decrypt(pw, config.C.EncryptionKey) == "" {
+					pw = crypto.Encrypt(pw, config.C.EncryptionKey)
+				}
+			}
 			// upsert by (provider, email)
 			res, err := database.Exec(`
 				INSERT INTO accounts (provider, email, password, status, enabled, metadata, created_at)
@@ -154,10 +163,10 @@ func importAccounts(database *db.DB) http.HandlerFunc {
 					enabled  = excluded.enabled,
 					metadata = excluded.metadata,
 					updated_at = ?`,
-				a.Provider, a.Email, a.Password, status, enabled, a.Metadata, now, now,
+				a.Provider, a.Email, pw, status, enabled, a.Metadata, now, now,
 			)
 			if err != nil {
-				log.Printf("[api] import accounts failed: %v", err)
+				slog.Error("[api] import accounts failed", "err", err)
 				jsonError(w, http.StatusInternalServerError, "internal server error")
 				return
 			}

@@ -9,7 +9,7 @@ import (
 	"database/sql"
 	"encoding/pem"
 	"fmt"
-	"log"
+	"log/slog"
 	"math/big"
 	"sync"
 	"time"
@@ -113,11 +113,11 @@ func (cs *CertStore) generateAndCache(domain string) (*tls.Certificate, error) {
 			domain, certPEM, keyPEM, expiresAt,
 		)
 		if err != nil {
-			log.Printf("[mitm/certstore] db persist %s: %v", domain, err)
+			slog.Info(fmt.Sprintf("[mitm/certstore] db persist %s: %v", domain, err))
 		}
 	}
 
-	log.Printf("[mitm/certstore] generated cert for %s", domain)
+	slog.Info(fmt.Sprintf("[mitm/certstore] generated cert for %s", domain))
 	return &tlsCert, nil
 }
 
@@ -153,7 +153,7 @@ func (cs *CertStore) loadFromDB() {
 		time.Now().Unix(),
 	)
 	if err != nil {
-		log.Printf("[mitm/certstore] load from db: %v", err)
+		slog.Warn("[mitm/certstore] load from db", "err", err)
 		return
 	}
 	defer rows.Close()
@@ -164,18 +164,18 @@ func (cs *CertStore) loadFromDB() {
 		var certPEM, keyPEM []byte
 		var expiresAt int64
 		if err := rows.Scan(&domain, &certPEM, &keyPEM, &expiresAt); err != nil {
-			log.Printf("[mitm/certstore] scan row: %v", err)
+			slog.Warn("[mitm/certstore] scan row", "err", err)
 			continue
 		}
 		cert, err := tls.X509KeyPair(certPEM, keyPEM)
 		if err != nil {
-			log.Printf("[mitm/certstore] parse cert for %s: %v", domain, err)
+			slog.Info(fmt.Sprintf("[mitm/certstore] parse cert for %s: %v", domain, err))
 			continue
 		}
 		cs.cache[domain] = &cert
 		count++
 	}
 	if count > 0 {
-		log.Printf("[mitm/certstore] loaded %d certs from DB", count)
+		slog.Info(fmt.Sprintf("[mitm/certstore] loaded %d certs from DB", count))
 	}
 }
