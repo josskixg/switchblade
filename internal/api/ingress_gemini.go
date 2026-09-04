@@ -298,12 +298,8 @@ func geminiToChat(model string, in *geminiRequest, stream bool) (*oaiRequest, er
 				continue
 			}
 			out.Tools = append(out.Tools, oaiTool{
-				Type: "function",
-				Function: oaiFunction{
-					Name:        fn.Name,
-					Description: fn.Description,
-					Parameters:  fn.Parameters,
-				},
+				Type:     "function",
+				Function: oaiFunction(fn),
 			})
 		}
 	}

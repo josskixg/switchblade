@@ -39,6 +39,7 @@ jobs:
       - uses: golangci/golangci-lint-action@v6
         with:
           version: latest
+          install-mode: "goinstall"
 
   # ─── Frontend Build ───────────────────────────────────────────────────
   frontend:
@@ -68,6 +69,7 @@ jobs:
     needs: [test, frontend]
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           # Linux
@@ -107,17 +109,18 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          go build -trimpath -ldflags="-s -w \
-            -X main.Version=${GITHUB_REF_NAME:-dev} \
-            -X main.Commit=${GITHUB_SHA::8} \
-            -X main.Date=$(date -u +%Y%m%d)" \
-            -o ${{ env.APP_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} \
-            ./cmd/switchblade
+          COMMIT=$(echo "${GITHUB_SHA}" | cut -c1-8)
+          DATE=$(date -u +%Y%m%d)
+          VERSION="${GITHUB_REF_NAME:-dev}"
+          LDFLAGS="-s -w -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.Date=${DATE} -X switchblade/internal/version.Version=${VERSION} -X switchblade/internal/version.Commit=${COMMIT} -X switchblade/internal/version.Date=${DATE}"
+          go build -trimpath -ldflags="${LDFLAGS}" -o "${{ env.APP_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" ./cmd/switchblade
 
       - name: Create archive
         run: |
+          REF="${GITHUB_REF_NAME//\//-}"
+          REF="${REF:-dev}"
           BINARY="${{ env.APP_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
-          ARCHIVE="${{ env.APP_NAME }}-${GITHUB_REF_NAME:-dev}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz"
+          ARCHIVE="${{ env.APP_NAME }}-${REF}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz"
           if [ -f README.md ] && [ -f LICENSE ]; then
             tar czf "$ARCHIVE" "$BINARY" README.md LICENSE
           elif [ -f README.md ]; then
@@ -188,6 +191,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           pattern: ${{ env.APP_NAME }}-archive-*

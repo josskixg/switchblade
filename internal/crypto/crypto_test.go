@@ -14,8 +14,6 @@ func TestEncryptDecrypt(t *testing.T) {
 func TestDecrypt_InvalidInput(t *testing.T) {
 	// garbage base64 → returns the input unchanged (not a panic)
 	result := Decrypt("not-valid-base64!!!", "somekey")
-	if result == "" {
-		// returning empty is also acceptable, just no panic
-	}
 	_ = result
 }
+

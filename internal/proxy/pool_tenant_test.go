@@ -125,7 +125,9 @@ func TestPoolManager_ReusesPoolPerKey(t *testing.T) {
 	database := testDB(t)
 	mgr := NewPoolManager(database, "round_robin")
 
-	if mgr.For("tenant_a", "openai") != mgr.For("tenant_a", "openai") {
+	p1 := mgr.For("tenant_a", "openai")
+	p2 := mgr.For("tenant_a", "openai")
+	if p1 != p2 {
 		t.Fatal("same (tenant, provider) should resolve to one pool")
 	}
 	if mgr.For("tenant_a", "openai") == mgr.For("tenant_b", "openai") {

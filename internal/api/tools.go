@@ -53,7 +53,7 @@ func handleRandomIdentity(w http.ResponseWriter, r *http.Request) {
 		"full_name":  fn + " " + ln,
 		"email":      email,
 		"username":   fn + ln + strconv.Itoa(rand.Intn(9999)),
-		"phone":      "+1" + strconv.Itoa(2000000000+rand.Intn(7999999999)),
+		"phone":      "+1" + strconv.FormatInt(2000000000+rand.Int63n(8000000000), 10),
 		"street":     strconv.Itoa(rand.Intn(9999)) + " " + streets[rand.Intn(len(streets))],
 		"city":       cities[rand.Intn(len(cities))],
 		"state":      states[rand.Intn(len(states))],

@@ -6,7 +6,7 @@
 
 **The ultra-fast, high-efficiency AI API Proxy Pool.**
 
-[![CI](https://github.com/josski45/switchblade/actions/workflows/ci.yml/badge.svg)](https://github.com/josski45/switchblade/actions/workflows/ci.yml)
+[![CI](https://github.com/josskixg/switchblade/actions/workflows/ci.yml/badge.svg)](https://github.com/josskixg/switchblade/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-blueviolet?style=flat-square)](LICENSE)
 [![SQLite](https://img.shields.io/badge/SQLite-Pure%20Go-003B57?style=flat-square&logo=sqlite&logoColor=white)](https://modernc.org/sqlite)
@@ -85,7 +85,7 @@ Tests live next to the code they cover (`*_test.go` in each package).
 ### 1. Clone & Build
 
 ```bash
-git clone https://github.com/josski45/switchblade.git
+git clone https://github.com/josskixg/switchblade.git
 cd switchblade
 make build
 ```
