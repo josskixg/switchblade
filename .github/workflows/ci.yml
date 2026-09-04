@@ -79,7 +79,6 @@ jobs:
           - { goos: linux,   goarch: 386,    ext: "" }
           - { goos: linux,   goarch: riscv64,ext: "" }
           - { goos: linux,   goarch: loong64,ext: "" }
-          - { goos: linux,   goarch: mips64, ext: "" }
           # Windows
           - { goos: windows, goarch: amd64,  ext: ".exe" }
           - { goos: windows, goarch: arm64,  ext: ".exe" }
