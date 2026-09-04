@@ -3,8 +3,8 @@
 # ─────────────────────────────────────────────
 
 # ── Binary / Build output ──────────────────────
-switchblade
-switchblade.exe
+/switchblade
+/switchblade.exe
 /dist/
 /build/
 *.out
